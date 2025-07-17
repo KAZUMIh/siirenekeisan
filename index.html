@@ -44,11 +44,14 @@
 利益額 ≒ ¥0</div>
 
   <script>
-    // 為替取得用fetch関数
+    // 為替取得用fetch関数（ログ追加版）
     async function fetchFx() {
+      console.log('fetchFx() called');
       try {
         const res = await fetch('https://api.exchangerate.host/latest?base=USD&symbols=JPY');
+        console.log('fetch response status:', res.status);
         const json = await res.json();
+        console.log('fetch json:', json);
         const rate = json.rates.JPY;
         document.getElementById('fxRate').value = (rate - 2).toFixed(2);
         document.getElementById('fxLabel').style.display = 'block';
@@ -95,6 +98,7 @@
 
     // モード切替時
     document.querySelectorAll('input[name="mode"]').forEach(r => r.addEventListener('change', () => {
+      console.log('mode changed to', r.value);
       saveData(currentMode);
       const newMode = getMode();
       loadData(newMode);
@@ -107,6 +111,7 @@
 
     // 通貨切替時
     document.getElementById('currency').addEventListener('change', e => {
+      console.log('currency changed to', e.target.value);
       const isUSD = e.target.value === 'USD';
       document.getElementById('fxLabel').style.display = isUSD ? 'block' : 'none';
       if (isUSD) fetchFx();
