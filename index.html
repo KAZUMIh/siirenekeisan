@@ -45,13 +45,15 @@
 
   <script>
     // 為替取得用fetch関数（ログ追加版）
+    // 為替取得用fetch関数（Frankfurter API + ログ追加）
     async function fetchFx() {
       console.log('fetchFx() called');
       try {
-        const res = await fetch('https://api.exchangerate.host/latest?base=USD&symbols=JPY');
+        const res = await fetch('https://api.frankfurter.app/latest?from=USD&to=JPY');
         console.log('fetch response status:', res.status);
         const json = await res.json();
         console.log('fetch json:', json);
+        // Frankfurter API のレスポンスは json.rates.JPY にレートが入っています
         const rate = json.rates.JPY;
         document.getElementById('fxRate').value = (rate - 2).toFixed(2);
         document.getElementById('fxLabel').style.display = 'block';
