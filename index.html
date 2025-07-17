@@ -44,20 +44,17 @@
 利益額 ≒ ¥0</div>
 
   <script>
-    // JSONP コールバック
-    function handleFx(data) {
-      const rate = data.rates.JPY;
-      document.getElementById('fxRate').value = (rate - 2).toFixed(2);
-    }
-
-    // JSONP 取得
-    function fetchFx() {
-      const old = document.getElementById('fxJsonp');
-      if (old) old.remove();
-      const script = document.createElement('script');
-      script.id = 'fxJsonp';
-      script.src = 'https://api.exchangerate.host/latest?base=USD&symbols=JPY&callback=handleFx';
-      document.body.appendChild(script);
+    // 為替取得用fetch関数
+    async function fetchFx() {
+      try {
+        const res = await fetch('https://api.exchangerate.host/latest?base=USD&symbols=JPY');
+        const json = await res.json();
+        const rate = json.rates.JPY;
+        document.getElementById('fxRate').value = (rate - 2).toFixed(2);
+        document.getElementById('fxLabel').style.display = 'block';
+      } catch (e) {
+        console.error('fx fetch error', e);
+      }
     }
 
     const formData = { retail: {}, wholesale: {} };
@@ -96,18 +93,20 @@
       });
     }
 
-    document.querySelectorAll('input[name="mode"]').forEach(r => r.addEventListener('change', async () => {
+    // モード切替時
+    document.querySelectorAll('input[name="mode"]').forEach(r => r.addEventListener('change', () => {
       saveData(currentMode);
       const newMode = getMode();
       loadData(newMode);
+      // 小売+USDなら為替取得
       if (newMode === 'retail' && document.getElementById('currency').value === 'USD') {
-        document.getElementById('fxLabel').style.display = 'block';
         fetchFx();
       }
       currentMode = newMode;
     }));
 
-    document.getElementById('currency').addEventListener('change', async e => {
+    // 通貨切替時
+    document.getElementById('currency').addEventListener('change', e => {
       const isUSD = e.target.value === 'USD';
       document.getElementById('fxLabel').style.display = isUSD ? 'block' : 'none';
       if (isUSD) fetchFx();
