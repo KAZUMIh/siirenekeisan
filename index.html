@@ -1,0 +1,51 @@
+<!--
+使い方:
+1. このファイルを `仕入れ値計算アプリ.html` として保存してください。
+2. ファイルをダブルクリックするか、ブラウザ（Chrome, Safari, Firefoxなど）で開いてください。
+   コードではなく計算画面が表示されます。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>仕入れ値計算アプリ</title>
+  <style>
+    body { font-family: sans-serif; max-width: 400px; margin: 2rem auto; padding: 1rem; border: 1px solid #ccc; border-radius: 8px; }
+    label { display: block; margin-top: 1rem; }
+    input { width: 100%; padding: 0.5rem; margin-top: 0.5rem; box-sizing: border-box; }
+    button { margin-top: 1rem; padding: 0.75rem; width: 100%; }
+    #result { margin-top: 1.5rem; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>仕入れ値計算アプリ</h1>
+  <label>売価 (税込)<input type="number" id="salePrice" placeholder="例: 65000"></label>
+  <label>メルカリ手数料 (%)<input type="number" id="platformFee" value="10"></label>
+  <label>仕入消費税 (%)<input type="number" id="tax" value="10"></label>
+  <label>仕入手数料 (%)<input type="number" id="procFee" value="3"></label>
+  <label>目標利益率 (%)<input type="number" id="margin" value="30"></label>
+  <button onclick="calculate()">仕入れ値を計算</button>
+  <div id="result"></div>
+
+  <script>
+    function calculate() {
+      const sale = parseFloat(document.getElementById('salePrice').value) || 0;
+      const pf = parseFloat(document.getElementById('platformFee').value) / 100;
+      const tax = parseFloat(document.getElementById('tax').value) / 100;
+      const pf2 = parseFloat(document.getElementById('procFee').value) / 100;
+      const margin = parseFloat(document.getElementById('margin').value) / 100;
+
+      // 販売後の手元額
+      const netSale = sale * (1 - pf);
+      // 目標仕入総額
+      const targetCost = netSale / (1 + margin);
+      // 税抜仕入額
+      const preTax = targetCost / (1 + tax) / (1 + pf2);
+      
+      document.getElementById('result').innerText =
+        `仕入れ値 (税抜) ≒ ¥${preTax.toFixed(0)}`;
+    }
+  </script>
+</body>
+</html>
