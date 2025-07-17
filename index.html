@@ -40,7 +40,7 @@
   <label>仕入手数料 (%)<input type="number" id="procFee" value="3"></label>
   <label>目標利益率 (%)<input type="number" id="margin" value="30"></label>
   <button onclick="calculate()">仕入れ値を計算</button>
-  <div id="result"></div>
+  <div id="result">仕入れ値 (税抜) ≒ ¥0\n利益額 ≒ ¥0</div>
 
 <script>
   const formData = { retail: {}, wholesale: {} };
@@ -66,14 +66,13 @@
 
   function loadData(mode) {
     const data = formData[mode] || {};
-    // モードに応じたUI切替
     document.getElementById('currencySection').style.display = mode === 'retail' ? 'block' : 'none';
 
     if (mode === 'retail') {
       document.getElementById('currency').value = data.currency || 'JPY';
       if (data.currency === 'USD') {
-        document.getElementById('fxRate').value = data.fxRate || '';
         document.getElementById('fxLabel').style.display = 'block';
+        document.getElementById('fxRate').value = data.fxRate || '';
       } else {
         document.getElementById('fxLabel').style.display = 'none';
       }
@@ -84,21 +83,21 @@
     });
   }
 
-  document.querySelectorAll('input[name="mode"]').forEach(r => r.addEventListener('change', () => {
+  document.querySelectorAll('input[name="mode"]').forEach(r => r.addEventListener('change', async () => {
     saveData(currentMode);
     const newMode = getMode();
     loadData(newMode);
-    if (newMode === 'retail' && document.getElementById('currency').value === 'USD') fetchFx();
+    if (newMode === 'retail' && document.getElementById('currency').value === 'USD') {
+      document.getElementById('fxLabel').style.display = 'block';
+      await fetchFx();
+    }
     currentMode = newMode;
   }));
 
-  document.getElementById('currency').addEventListener('change', e => {
-    if (e.target.value === 'USD') {
-      document.getElementById('fxLabel').style.display = 'block';
-      fetchFx();
-    } else {
-      document.getElementById('fxLabel').style.display = 'none';
-    }
+  document.getElementById('currency').addEventListener('change', async e => {
+    const isUSD = e.target.value === 'USD';
+    document.getElementById('fxLabel').style.display = isUSD ? 'block' : 'none';
+    if (isUSD) await fetchFx();
   });
 
   async function fetchFx() {
@@ -108,7 +107,7 @@
       const rate = json.rates.JPY;
       document.getElementById('fxRate').value = (rate - 2).toFixed(2);
     } catch {
-      // エラー時は保存値を残す
+      // エラー時は既存値を保持
     }
   }
 
@@ -140,9 +139,10 @@
       `仕入れ値 (税抜) ≒ ¥${preTax.toFixed(0)}\n利益額 ≒ ¥${profit.toFixed(0)}`;
   }
 
-  // 初期処理
+  // 초기화
   loadData('retail');
-  fetchFx();
+  // USD 선택 여부 관계없이 초기 계산
+  if (document.getElementById('currency').value === 'USD') fetchFx();
 </script>
 </body>
 </html>
