@@ -9,9 +9,10 @@
     label { display: block; margin-top: 1rem; }
     input, select, .mode-switch { width: 100%; padding: 0.5rem; margin-top: 0.5rem; box-sizing: border-box; }
     button { margin-top: 1rem; padding: 0.75rem; width: 100%; }
-    #result { margin-top: 1.5rem; font-weight: bold; }
+    #result { margin-top: 1.5rem; font-weight: bold; white-space: pre-line; }
     .mode-switch { display: flex; justify-content: space-between; }
     .mode-switch label { flex: 1; text-align: center; margin: 0; }
+    .fx-note { font-size: 0.8em; color: #666; margin-top: 0.25rem; }
   </style>
 </head>
 <body>
@@ -20,6 +21,19 @@
     <label><input type="radio" name="mode" value="retail" checked>小売 (内税)</label>
     <label><input type="radio" name="mode" value="wholesale">業販 (外税)</label>
   </div>
+
+  <!-- 小売モード時のみ通貨選択・為替レート -->
+  <div id="currencySection">
+    <label>売価通貨
+      <select id="currency"><option value="JPY">JPY</option><option value="USD">USD</option></select>
+    </label>
+    <label id="fxLabel" style="display:none;">
+      為替レート (1 USD = JPY)
+      <input type="number" id="fxRate" readonly>
+      <div class="fx-note">レートはリアルタイムの-2円の厳し目の数値で計算しています。</div>
+    </label>
+  </div>
+
   <label>売価<input type="number" id="salePrice" placeholder="例: 65000"></label>
   <label>プラットフォーム手数料 (%)<input type="number" id="platformFee" value="10"></label>
   <label>仕入消費税 (%)<input type="number" id="tax" value="10"></label>
@@ -28,77 +42,107 @@
   <button onclick="calculate()">仕入れ値を計算</button>
   <div id="result"></div>
 
-  <script>
-    // 各モードごとのフォームデータを保持
-    const formData = {
-      retail: {},
-      wholesale: {}
+<script>
+  const formData = { retail: {}, wholesale: {} };
+  let currentMode = 'retail';
+
+  function getMode() {
+    return document.querySelector('input[name="mode"]:checked').value;
+  }
+
+  function saveData(mode) {
+    formData[mode] = {
+      salePrice: document.getElementById('salePrice').value,
+      ...(mode === 'retail' && {
+        currency: document.getElementById('currency').value,
+        fxRate: document.getElementById('fxRate').value
+      }),
+      platformFee: document.getElementById('platformFee').value,
+      tax: document.getElementById('tax').value,
+      procFee: document.getElementById('procFee').value,
+      margin: document.getElementById('margin').value
     };
-    let currentMode = 'retail';
+  }
 
-    // モード取得
-    function getMode() {
-      return document.querySelector('input[name="mode"]:checked').value;
-    }
+  function loadData(mode) {
+    const data = formData[mode] || {};
+    // モードに応じたUI切替
+    document.getElementById('currencySection').style.display = mode === 'retail' ? 'block' : 'none';
 
-    // 入力値を保存
-    function saveData(mode) {
-      formData[mode] = {
-        salePrice: document.getElementById('salePrice').value,
-        platformFee: document.getElementById('platformFee').value,
-        tax: document.getElementById('tax').value,
-        procFee: document.getElementById('procFee').value,
-        margin: document.getElementById('margin').value
-      };
-    }
-
-    // 入力値を読み込む
-    function loadData(mode) {
-      const data = formData[mode] || {};
-      if (data.salePrice !== undefined) document.getElementById('salePrice').value = data.salePrice;
-      if (data.platformFee !== undefined) document.getElementById('platformFee').value = data.platformFee;
-      if (data.tax !== undefined) document.getElementById('tax').value = data.tax;
-      if (data.procFee !== undefined) document.getElementById('procFee').value = data.procFee;
-      if (data.margin !== undefined) document.getElementById('margin').value = data.margin;
-    }
-
-    // モード切替時の処理
-    document.querySelectorAll('input[name="mode"]').forEach(radio => {
-      radio.addEventListener('change', () => {
-        const newMode = getMode();
-        // 現在の入力を保存
-        saveData(currentMode);
-        // 新モードの入力を読み込む
-        loadData(newMode);
-        currentMode = newMode;
-      });
-    });
-
-    function calculate() {
-      const mode = getMode();
-      // データ保存
-      saveData(mode);
-
-      const sale = parseFloat(document.getElementById('salePrice').value) || 0;
-      const pf = parseFloat(document.getElementById('platformFee').value) / 100;
-      const tax = parseFloat(document.getElementById('tax').value) / 100;
-      const pf2 = parseFloat(document.getElementById('procFee').value) / 100;
-      const margin = parseFloat(document.getElementById('margin').value) / 100;
-      let netSale, targetCost, preTax;
-
-      if (mode === 'retail') {
-        netSale = sale * (1 - pf);
-        targetCost = netSale / (1 + margin);
-        preTax = targetCost / (1 + tax) / (1 + pf2);
+    if (mode === 'retail') {
+      document.getElementById('currency').value = data.currency || 'JPY';
+      if (data.currency === 'USD') {
+        document.getElementById('fxRate').value = data.fxRate || '';
+        document.getElementById('fxLabel').style.display = 'block';
       } else {
-        netSale = sale * (1 - pf);
-        targetCost = netSale / (1 + margin);
-        preTax = targetCost / (1 + pf2);
+        document.getElementById('fxLabel').style.display = 'none';
       }
-
-      document.getElementById('result').innerText =
-        `仕入れ値 (税抜) ≒ ¥${preTax.toFixed(0)}`;
     }
-  </script>
+
+    ['salePrice','platformFee','tax','procFee','margin'].forEach(id => {
+      if (data[id] !== undefined) document.getElementById(id).value = data[id];
+    });
+  }
+
+  document.querySelectorAll('input[name="mode"]').forEach(r => r.addEventListener('change', () => {
+    saveData(currentMode);
+    const newMode = getMode();
+    loadData(newMode);
+    if (newMode === 'retail' && document.getElementById('currency').value === 'USD') fetchFx();
+    currentMode = newMode;
+  }));
+
+  document.getElementById('currency').addEventListener('change', e => {
+    if (e.target.value === 'USD') {
+      document.getElementById('fxLabel').style.display = 'block';
+      fetchFx();
+    } else {
+      document.getElementById('fxLabel').style.display = 'none';
+    }
+  });
+
+  async function fetchFx() {
+    try {
+      const res = await fetch('https://api.exchangerate.host/latest?base=USD&symbols=JPY');
+      const json = await res.json();
+      const rate = json.rates.JPY;
+      document.getElementById('fxRate').value = (rate - 2).toFixed(2);
+    } catch {
+      // エラー時は保存値を残す
+    }
+  }
+
+  function calculate() {
+    const mode = getMode();
+    saveData(mode);
+    let sale = parseFloat(document.getElementById('salePrice').value) || 0;
+
+    if (mode === 'retail' && document.getElementById('currency').value === 'USD') {
+      sale *= parseFloat(document.getElementById('fxRate').value) || 0;
+    }
+
+    const pf = parseFloat(document.getElementById('platformFee').value) / 100;
+    const tax = parseFloat(document.getElementById('tax').value) / 100;
+    const pf2 = parseFloat(document.getElementById('procFee').value) / 100;
+    const margin = parseFloat(document.getElementById('margin').value) / 100;
+
+    const netSale = sale * (1 - pf);
+    const targetCost = netSale / (1 + margin);
+    const preTax = mode === 'retail'
+      ? targetCost / (1 + tax) / (1 + pf2)
+      : targetCost / (1 + pf2);
+    const totalCost = mode === 'retail'
+      ? preTax * (1 + tax) * (1 + pf2)
+      : preTax * (1 + pf2);
+    const profit = netSale - totalCost;
+
+    document.getElementById('result').innerText =
+      `仕入れ値 (税抜) ≒ ¥${preTax.toFixed(0)}\n利益額 ≒ ¥${profit.toFixed(0)}`;
+  }
+
+  // 初期処理
+  loadData('retail');
+  fetchFx();
+</script>
 </body>
 </html>
