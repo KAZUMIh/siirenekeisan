@@ -43,7 +43,7 @@ button { cursor:pointer; }
   <button class="mode-btn wholesale" id="btnWholesale">業販（外税）</button>
 </div>
 
-<!-- ▼ 小売（20.htmlと同じUI） -->
+<!-- ▼ 小売（元のまま） -->
 <div id="currencySection">
   <label>売価通貨（小売のみ）
     <select id="currency">
@@ -72,22 +72,26 @@ button { cursor:pointer; }
   </label>
 </div>
 
-<!-- ▼ 業販（外税）専用：画像の形を保つ -->
+<!-- ▼ 業販（外税）専用：ここに「内税で計算する」チェックを足す -->
 <div class="hidden" id="wholesaleExtras" style="display:none;">
   <label>その他費用（円）
-    <input id="otherCostYen" type="number" value="900"/>
+    <input id="otherCostYen" type="number" value="0"/>
+  </label>
+  <label style="display:flex; gap:.45rem; align-items:center; margin-top:.6rem;">
+    <input id="wholesaleTaxIn" type="checkbox" style="width:auto; margin-top:0;"/>
+    業販を内税で計算する（売価は税抜を入力）
   </label>
 </div>
 
 <div class="row">
   <div>
     <label>プラットフォーム手数料（%）
-      <input id="platformFee" type="number" value="3"/>
+      <input id="platformFee" type="number" value="10"/>
     </label>
   </div>
   <div>
     <label>落札手数料（%）
-      <input id="auctionFeeRate" type="number" value="3"/>
+      <input id="auctionFeeRate" type="number" value="5"/>
     </label>
   </div>
 </div>
@@ -100,7 +104,7 @@ button { cursor:pointer; }
   </div>
   <div>
     <label>目標利益率（%）<small>（売上比）</small>
-      <input id="margin" type="number" value="8"/>
+      <input id="margin" type="number" value="20"/>
     </label>
   </div>
 </div>
@@ -113,14 +117,55 @@ button { cursor:pointer; }
 /* ===== 共通：UI制御 ===== */
 let currentMode = 'retail';
 
+/*
+  モードごとに「今の値」を持っておく。
+*/
+const modeState = {
+  retail: {
+    initialized: false,
+    platformFee: 10,
+    auctionFee: 5,
+    margin: 20
+  },
+  wholesale: {
+    initialized: false,
+    platformFee: 3,
+    auctionFee: 5,
+    margin: 10,
+    taxIn: false  // 業販だけ内税モードを持つ
+  }
+};
+
 function yen(n){ return '¥' + Math.round(n).toLocaleString('ja-JP'); }
+
+function applyModeValues() {
+  const s = modeState[currentMode];
+  document.getElementById('platformFee').value = s.platformFee;
+  document.getElementById('auctionFeeRate').value = s.auctionFee;
+  document.getElementById('margin').value = s.margin;
+  if (currentMode === 'wholesale') {
+    document.getElementById('wholesaleTaxIn').checked = !!s.taxIn;
+  }
+}
+
+function saveCurrentInputsToMode() {
+  const s = modeState[currentMode];
+  s.platformFee = parseFloat(document.getElementById('platformFee').value) || 0;
+  s.auctionFee  = parseFloat(document.getElementById('auctionFeeRate').value) || 0;
+  s.margin      = parseFloat(document.getElementById('margin').value) || 0;
+  if (currentMode === 'wholesale') {
+    s.taxIn = document.getElementById('wholesaleTaxIn').checked;
+    // その他費用も覚える
+    s.otherCost = parseFloat(document.getElementById('otherCostYen').value) || 0;
+  }
+  s.initialized = true;
+}
 
 function syncUI() {
   const isRetail = currentMode === 'retail';
-  // 小売UI（20.htmlのまま）
+  // UI切替
   document.getElementById('currencySection').style.display = isRetail ? 'block' : 'none';
   document.getElementById('retailExtras').style.display = isRetail ? 'block' : 'none';
-  // 業販UI（画像の形）
   document.getElementById('wholesaleExtras').style.display = isRetail ? 'none' : 'block';
 
   // ラベル
@@ -129,10 +174,48 @@ function syncUI() {
   // ボタン色
   document.getElementById('btnRetail').classList.toggle('active', isRetail);
   document.getElementById('btnWholesale').classList.toggle('active', !isRetail);
+
+  // モードの値を反映
+  if (!modeState[currentMode].initialized) {
+    applyModeValues();
+    modeState[currentMode].initialized = true;
+  } else {
+    applyModeValues();
+    // 業販でotherCostを持っていたら反映
+    if (currentMode === 'wholesale' && typeof modeState.wholesale.otherCost === 'number') {
+      document.getElementById('otherCostYen').value = modeState.wholesale.otherCost;
+    }
+  }
+
+  // 小売USDのときだけ為替ラベル
+  if (isRetail) {
+    const cur = document.getElementById('currency').value;
+    document.getElementById('fxLabel').style.display = (cur === 'USD') ? 'block' : 'none';
+  } else {
+    document.getElementById('fxLabel').style.display = 'none';
+  }
 }
 
-document.getElementById('btnRetail').addEventListener('click', () => { currentMode = 'retail'; syncUI(); });
-document.getElementById('btnWholesale').addEventListener('click', () => { currentMode = 'wholesale'; syncUI(); });
+document.getElementById('btnRetail').addEventListener('click', () => {
+  saveCurrentInputsToMode();
+  currentMode = 'retail';
+  syncUI();
+});
+
+document.getElementById('btnWholesale').addEventListener('click', () => {
+  saveCurrentInputsToMode();
+  currentMode = 'wholesale';
+  syncUI();
+});
+
+/* 入力が変わったらそのモードに保存しておく */
+['platformFee','auctionFeeRate','margin','wholesaleTaxIn','otherCostYen'].forEach(id => {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.addEventListener('input', () => {
+    saveCurrentInputsToMode();
+  });
+});
 
 /* 為替（小売のみ任意） */
 async function fetchFx() {
@@ -149,22 +232,22 @@ document.getElementById('currency').addEventListener('change', () => {
   if (cur === 'USD' && !document.getElementById('fxRate').value) fetchFx();
 });
 
+/* 初期表示 */
 syncUI();
 
 /* ===== 計算ボタン ===== */
 document.getElementById('calcBtn').addEventListener('click', () => {
   const isRetail = currentMode === 'retail';
 
-  // 入力
+  // 入力共通
   const saleInput = parseFloat(document.getElementById('salePrice').value) || 0;
   const pf = (parseFloat(document.getElementById('platformFee').value) || 0) / 100;
   const auction = (parseFloat(document.getElementById('auctionFeeRate').value) || 0) / 100;
   const tax = (parseFloat(document.getElementById('tax').value) || 0) / 100;
   const margin = (parseFloat(document.getElementById('margin').value) || 0) / 100;
 
-  // ===== 小売（20.htmlそのままのロジック）=====
+  /* ===== 小売（もとのまま） ===== */
   if (isRetail) {
-    // 売価（円換算）
     let saleJPY = saleInput;
     const cur = document.getElementById('currency').value;
     if (cur === 'USD') {
@@ -175,33 +258,35 @@ document.getElementById('calcBtn').addEventListener('click', () => {
     const shipping = parseFloat(document.getElementById('shippingYen').value) || 0;
     const listing  = parseFloat(document.getElementById('listingFeeYen').value) || 0;
 
-    // 手数料控除後の売上（税抜）
     const netSale = saleJPY * (1 - pf);
-
-    // 目標コスト（売上比）
     const targetCost = netSale * (1 - margin);
-
-    // 送料・出品代行を引いた残りを「仕入+落札手数料+仕入税」に充当
     const available = Math.max(targetCost - shipping - listing, 0);
-
-    // 仕入（税抜）と落札手数料（税抜）を同時に逆算、仕入税は別立て
     const preTax = available / (1 + tax + auction);
     const auctionYen = preTax * auction;
     const totalCost = preTax * (1 + tax) + auctionYen + shipping + listing;
-
     const profit = netSale - totalCost;
 
     document.getElementById('result').innerHTML =
       '仕入れ値 (税抜) ≒ ' + yen(preTax) + '<br>' +
       '利益額 ≒ ' + yen(profit);
+
+    saveCurrentInputsToMode();
     return;
   }
 
-  // ===== 業販（外税）：税抜売価 × 売上比で仕入れ値（税抜）を逆算 =====
+  /* ===== 業販（外税 or 内税モード） ===== */
   const other = parseFloat(document.getElementById('otherCostYen').value) || 0;
+  const taxInMode = document.getElementById('wholesaleTaxIn').checked;
 
-  // 税抜の純売上
-  const netSale = saleInput * (1 - pf);
+  let netSale;
+  if (taxInMode) {
+    // 売価は税抜で入れてもらう → ここで税込にする（10%）
+    const saleWithTax = saleInput * 1.10;
+    netSale = saleWithTax * (1 - pf);       // 手数料控除後の税込純売上
+  } else {
+    // いままでの外税モード
+    netSale = saleInput * (1 - pf);
+  }
 
   // 売上比の目標コスト
   const targetCost = netSale * (1 - margin);
@@ -210,8 +295,8 @@ document.getElementById('calcBtn').addEventListener('click', () => {
   const available = Math.max(targetCost - other, 0);
 
   // 仕入（税抜）と落札手数料（税抜）
-  const preTax = available / (1 + auction);   // ★求めたい税抜仕入れ値
-  const auctionYen = preTax * auction;        // 税抜の落札手数料
+  const preTax = available / (1 + auction);
+  const auctionYen = preTax * auction;
 
   // 税抜コスト合計
   const totalCost = preTax + auctionYen + other;
@@ -219,10 +304,19 @@ document.getElementById('calcBtn').addEventListener('click', () => {
   // 税抜利益
   const profit = netSale - totalCost;
 
-  // 表示は2行、改行は <br>（「/n」「\n」は出しません）
-  document.getElementById('result').innerHTML =
-    '仕入れ値 (税抜) ≒ ' + yen(preTax) + '<br>' +
-    '利益額 ≒ ' + yen(profit);
+  if (taxInMode) {
+    const preTaxWith10 = preTax * 1.10;
+    document.getElementById('result').innerHTML =
+      '仕入れ値 (税抜) ≒ ' + yen(preTax) + '<br>' +
+      '仕入れ値 (税込) ≒ ' + yen(preTaxWith10) + '<br>' +
+      '利益額 ≒ ' + yen(profit);
+  } else {
+    document.getElementById('result').innerHTML =
+      '仕入れ値 (税抜) ≒ ' + yen(preTax) + '<br>' +
+      '利益額 ≒ ' + yen(profit);
+  }
+
+  saveCurrentInputsToMode();
 });
 </script>
 </body>
