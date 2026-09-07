@@ -65,17 +65,21 @@ details.bd .in { font-size:.78rem; color:#555; line-height:1.8; margin-top:.3rem
 #feeNote .sub { color:#9aa0a8; }
 #customFeeWrap { margin-top:.5rem; display:none; }
 
-/* 4. その他の設定 */
-details.settings { margin-top:1.4rem; border-top:1px solid var(--line); padding-top:.8rem; }
-details.settings > summary {
-  cursor:pointer; font-size:.85rem; font-weight:700; color:#3b4048; list-style:none;
-  display:flex; align-items:baseline; gap:.4rem;
+/* 4. 目標利益率 */
+.margin-row { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; }
+.margin-row #margin { width:82px; flex:none; font-size:1.15rem; font-weight:700; text-align:right; }
+.chips { display:flex; gap:.3rem; flex:1 1 175px; min-width:0; }
+.chip {
+  flex:1 1 0; min-width:0; padding:.5rem .05rem; border:1px solid var(--line); border-radius:8px;
+  background:#fafbfc; font-size:.82rem; font-weight:700; color:#4a4f57; cursor:pointer;
 }
-details.settings > summary::-webkit-details-marker { display:none; }
-details.settings > summary::before { content:'▸'; color:var(--muted); font-size:.75rem; flex:none; }
-details.settings[open] > summary::before { content:'▾'; }
-details.settings > summary > .lbl { flex:none; white-space:nowrap; }
-#settingsSummary { flex:1; font-weight:400; font-size:.76rem; color:var(--muted); line-height:1.5; }
+.chip:hover { background:#f1f3f6; }
+.chip.on { background:#eaf3ff; border-color:#9dbdf0; color:#244b8a; }
+.card.retail ~ .section .chip.on { background:#ffe9e9; border-color:#f0aeae; color:#9a2a2a; }
+
+/* 5. その他の設定 */
+.settings { margin-top:1.4rem; border-top:1px solid var(--line); padding-top:.9rem; }
+.settings-head { font-size:.85rem; font-weight:700; color:#3b4048; }
 .settings-body { margin-top:.7rem; }
 .settings-body .field-label { margin-top:.85rem; }
 .settings-body .field-label:first-child { margin-top:0; }
@@ -136,9 +140,18 @@ details.settings > summary > .lbl { flex:none; white-space:nowrap; }
   <div id="feeNote"></div>
 </div>
 
-<!-- 4. その他の設定 -->
-<details class="settings" id="settings">
-  <summary><span class="lbl">その他の設定</span><span id="settingsSummary"></span></summary>
+<!-- 4. 目標利益率（よく変えるので表に出しておく） -->
+<div class="section">
+  <div class="field-label">目標利益率（%・売上比）</div>
+  <div class="margin-row">
+    <input id="margin" type="number" inputmode="numeric" value="20"/>
+    <div class="chips" id="marginChips"></div>
+  </div>
+</div>
+
+<!-- 5. その他の設定 -->
+<div class="settings" id="settings">
+  <div class="settings-head">その他の設定</div>
   <div class="settings-body">
 
     <div id="retailExtras">
@@ -169,11 +182,8 @@ details.settings > summary > .lbl { flex:none; white-space:nowrap; }
       </div>
     </div>
 
-    <div class="field-label">目標利益率（%・売上比）</div>
-    <input id="margin" type="number" value="20"/>
-
   </div>
-</details>
+</div>
 
 <div class="foot">入力するとその場で計算します<br>設定は次に開いたときも残ります</div>
 
@@ -394,14 +404,21 @@ function readInputsToState() {
   if (currentAuction().fee.kind === 'custom') s.customFee = num('auctionFeeRate');
 }
 
-function updateSettingsSummary() {
-  const s = modeState[currentMode];
-  const parts = ['利益率' + s.margin + '%', '販売手数料' + s.platformFee + '%'];
-  if (currentMode === 'retail') parts.push('送料+代行 ' + yen(s.shipping + s.listing));
-  else { if (s.otherCost) parts.push('その他 ' + yen(s.otherCost)); if (s.taxIn) parts.push('内税'); }
-  parts.push('消費税' + s.tax + '%');
-  $('settingsSummary').textContent = '（' + parts.join('／') + '）';
+/* 目標利益率のワンタッチ切替。よく使う値をボタンにしてある。
+   今の利益率と同じボタンには色が付く。 */
+const MARGIN_PRESETS = [10, 15, 20, 25, 30];
+function renderMarginChips() {
+  const now = modeState[currentMode].margin;
+  $('marginChips').innerHTML = MARGIN_PRESETS.map(v =>
+    '<button type="button" class="chip' + (v === now ? ' on' : '') + '" data-v="' + v + '">'
+    + v + '%</button>').join('');
 }
+$('marginChips').addEventListener('click', (e) => {
+  const b = e.target.closest('.chip');
+  if (!b) return;
+  $('margin').value = b.dataset.v;
+  calc();
+});
 
 function syncMode() {
   const isRetail = currentMode === 'retail';
@@ -414,7 +431,7 @@ function syncMode() {
   $('resultCard').className = 'card ' + (isRetail ? 'retail' : 'wholesale');
   $('fxWrap').style.display = (isRetail && $('currency').value === 'USD') ? 'block' : 'none';
   fillInputsFromState();
-  updateSettingsSummary();
+  renderMarginChips();
   calc();
 }
 
@@ -431,7 +448,7 @@ function tierLabel(auction, tier, catIndex) {
 /* ---------------------------------------------------------------- 計算 */
 function calc() {
   readInputsToState();
-  updateSettingsSummary();
+  renderMarginChips();
   saveAll();
 
   const s = modeState[currentMode];
