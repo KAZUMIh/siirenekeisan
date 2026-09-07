@@ -4,6 +4,7 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>仕入れ値計算アプリ（売上比利益率）</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+CiAgPHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTQiIGZpbGw9IiMxZjNmN2EiLz4KICA8cGF0aCBkPSJNMjAgMTUgTDMyIDMxIEw0NCAxNSIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZmZmIiBzdHJva2Utd2lkdGg9IjciIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPgogIDxyZWN0IHg9IjI4LjUiIHk9IjI4IiB3aWR0aD0iNyIgaGVpZ2h0PSIyMyIgcng9IjIiIGZpbGw9IiNmZmYiLz4KICA8cmVjdCB4PSIxOCIgeT0iMzQiIHdpZHRoPSIyOCIgaGVpZ2h0PSI1LjUiIHJ4PSIyLjciIGZpbGw9IiNmZmYiLz4KICA8cmVjdCB4PSIxOCIgeT0iNDIuNSIgd2lkdGg9IjI4IiBoZWlnaHQ9IjUuNSIgcng9IjIuNyIgZmlsbD0iI2ZmZiIvPgo8L3N2Zz4K"/>
 <style>
 body {
   font-family: system-ui, -apple-system, Segoe UI, Roboto, "Hiragino Kaku Gothic ProN", "Noto Sans JP", Meiryo, sans-serif;
@@ -15,6 +16,7 @@ label { display:block; margin-top: .9rem; font-weight:600; }
 input, select, button {
   width:100%; padding:.55rem .65rem; box-sizing:border-box;
   margin-top:.4rem; border:1px solid #ccc; border-radius:8px;
+  font-size: 1rem; font-family: inherit;
 }
 button { cursor:pointer; }
 .row { display:flex; gap:.6rem; }
@@ -33,6 +35,14 @@ button { cursor:pointer; }
 .mode-btn:hover { filter:brightness(0.98); }
 .mode-btn.retail.active { background:#ffe9e9; border-color:#ffbcbc; color:#9a2a2a; }
 .mode-btn.wholesale.active { background:#eaf3ff; border-color:#bfd8ff; color:#244b8a; }
+
+/* 仕入手数料ブロック */
+#auctionBlock { margin-top:.9rem; border:1px solid #e3e7ef; background:#f7f9fc; border-radius:10px; padding:.7rem .8rem .8rem; }
+#auctionBlock > label { margin-top:0; }
+#feeNote { font-size:.78rem; color:#555; margin-top:.45rem; line-height:1.5; }
+#feeNote b { color:#1f3f7a; }
+#feeNote .sub { color:#888; }
+.breakdown { font-weight:400; font-size:.85rem; color:#555; margin-top:.5rem; line-height:1.7; border-top:1px solid #eee; padding-top:.5rem; }
 </style>
 </head>
 <body>
@@ -43,7 +53,7 @@ button { cursor:pointer; }
   <button class="mode-btn wholesale" id="btnWholesale">業販（外税）</button>
 </div>
 
-<!-- ▼ 小売（そのまま） -->
+<!-- ▼ 小売 -->
 <div id="currencySection">
   <label>売価通貨（小売のみ）
     <select id="currency">
@@ -90,71 +100,261 @@ button { cursor:pointer; }
     </label>
   </div>
   <div>
-    <label>仕入手数料（%）
-      <input id="auctionFeeRate" type="number" value="5"/>
-    </label>
-  </div>
-</div>
-
-<div class="row">
-  <div>
     <label>仕入消費税（%）
       <input id="tax" type="number" value="10"/>
     </label>
   </div>
-  <div>
-    <label>目標利益率（%）<small>（売上比）</small>
-      <input id="margin" type="number" value="20"/>
-    </label>
-  </div>
 </div>
 
-<button id="calcBtn">仕入れ値（税抜）を計算</button>
+<label>目標利益率（%）<small>（売上比）</small>
+  <input id="margin" type="number" value="20"/>
+</label>
+
+<!-- ▼ 仕入手数料（買い手数料） -->
+<div id="auctionBlock">
+  <label style="font-size:.95rem;">仕入手数料（オークション）
+    <select id="auctionSelect"></select>
+  </label>
+  <select id="auctionCat" style="display:none;"></select>
+  <label id="customFeeLabel" style="display:none; font-weight:400; font-size:.85rem; margin-top:.5rem;">
+    手数料（%）
+    <input id="auctionFeeRate" type="number" value="5"/>
+  </label>
+  <div id="feeNote"></div>
+</div>
+
+<button id="calcBtn" style="margin-top:1rem;">仕入れ値（税抜）を計算</button>
 <div class="hint" style="text-align:center;">どの入力欄でも Enter で計算できます</div>
 
 <div id="result">仕入れ値 (税抜) ≒ ¥0<br>利益額 ≒ ¥0</div>
 
 <script>
-let currentMode = 'retail';
+/* =====================================================================
+   仕入手数料（＝落札したときに会場へ払う「買い手数料」）の一覧。
+   「手数料まとめ」に書いてある落札手数料をそのまま入れてある。
 
-// モードごとの状態を保持
-const modeState = {
-  retail: {
-    initialized: false,
-    platformFee: 10,
-    auctionFee: 5,
-    margin: 20
-  },
-  wholesale: {
-    initialized: false,
-    platformFee: 3,
-    auctionFee: 5,
-    margin: 10,
-    taxIn: false,
-    otherCost: 0
-  }
-};
+   手数料の形は3通りある。
+     rate  … 一律の％
+     tier  … 落札金額の段で変わる（％のことも、定額◯◯円のこともある）
+     cats  … 商材（ジュエリー／時計／バッグ など）で変わる
+
+   ★ブランドでは変わらない。変わるのは「商材」だけで、3会場のみ。
+     ブランド別に変わるのは YBA の“出品(売り)手数料”で、こちらは買いには関係しない。
+
+   tier の hi は「その段に入る上限額（その額を含む）」。
+   ＋税と書いてある会場は、実際に払う額に合わせて税込の率で入れてある。
+   ===================================================================== */
+const AUCTIONS = [
+  { id:'custom', name:'カスタム（手入力）', fee:{kind:'custom'},
+    note:'下の欄に自分で％を入れる。' },
+
+  { id:'aucnet', name:'オークネット', fee:{kind:'rate', rate:4},
+    note:'落札手数料 <b>4%</b>（プレミアム会員）' },
+
+  { id:'eco', name:'エコリング', fee:{kind:'tier', tiers:[
+      {hi:10000, yen:500}, {hi:49999, yen:1000}, {hi:99999, yen:2000},
+      {hi:499999, yen:4000}, {hi:999999, yen:8000}, {hi:Infinity, yen:10000}]},
+    note:'落札手数料は<b>％ではなく定額</b>で、落札金額の段で決まる。'
+       + '<br><span class="sub">1万円まで500円／5万円未満1,000円／10万円未満2,000円／'
+       + '50万円未満4,000円／100万円未満8,000円／100万円以上10,000円</span>' },
+
+  { id:'starbuyers', name:'スターバイヤー', fee:{kind:'cats', cats:[
+      {label:'アパレル・靴・シルバーブランド', rate:10},
+      {label:'時計・ジュエリー・バッグ・アクセサリー・小物', rate:5}]},
+    note:'商材で変わる。' },
+
+  { id:'jba_tokyo', name:'JBAオークション東京', fee:{kind:'tier', tiers:[
+      {hi:9999, yen:500}, {hi:Infinity, rate:1}]},
+    note:'落札手数料 <b>1万円未満は1点500円／1万円以上は1%</b>' },
+
+  { id:'jba_kanazawa', name:'JBAオークション金沢', fee:{kind:'cats', cats:[
+      {label:'バッグ・その他', rate:1},
+      {label:'時計（落札手数料は免除）', rate:0}]},
+    note:'落札手数料 <b>1%</b>。時計だけ免除。' },
+
+  { id:'komehyo', name:'コメ兵オークション', fee:{kind:'rate', rate:3},
+    note:'落札手数料 <b>3%</b>' },
+
+  { id:'reva', name:'リバオク', fee:{kind:'rate', rate:3},
+    note:'落札手数料 <b>3%</b><br><span class="sub">※出品して流れると1点1,100円（買いには無関係）</span>' },
+
+  { id:'monobank', name:'ものばんく', fee:{kind:'rate', rate:3},
+    note:'買い手数料 <b>3%</b>／写真手数料なし' },
+
+  { id:'jrb', name:'JRBオークション', fee:{kind:'rate', rate:3},
+    note:'買い手数料 <b>3%</b>' },
+
+  { id:'otakaraya', name:'おたからやオークション', fee:{kind:'rate', rate:3},
+    note:'買い手数料 <b>3%</b>' },
+
+  { id:'timeless', name:'タイムレスオークション', fee:{kind:'rate', rate:3},
+    note:'買い手数料 <b>3%</b>（平場・オンライン共通）' },
+
+  { id:'daikichi', name:'大吉オークション', fee:{kind:'cats', cats:[
+      {label:'ブランド品（バッグ・小物）', rate:5},
+      {label:'ジュエリー', rate:3},
+      {label:'時計', rate:3}]},
+    note:'商材で変わる。' },
+
+  { id:'trefac', name:'トレファクオークション', fee:{kind:'tier', tiers:[
+      {hi:199999, rate:5.5}, {hi:Infinity, rate:1.1}]},
+    note:'落札手数料 <b>20万円未満 5%＋税（=5.5%）／20万円以上 1%＋税（=1.1%）</b>' },
+
+  { id:'yba', name:'YBA', fee:{kind:'rate', rate:3},
+    note:'落札手数料 <b>一律3%</b><br><span class="sub">※買手参加費6,600円/名は1回ごとの費用なので入れていない</span>' },
+
+  { id:'penguin', name:'ペンギンオークション', fee:{kind:'rate', rate:5},
+    note:'買い手数料 <b>5%</b><br><span class="sub">※参加費5,000円は1回ごとの費用なので入れていない</span>' },
+
+  { id:'unioku', name:'ユニオク', fee:{kind:'rate', rate:5},
+    note:'買い手数料 <b>5%</b>' },
+
+  { id:'apre', name:'アプレオークション', fee:{kind:'rate', rate:5},
+    note:'落札手数料 <b>5%</b><br><span class="sub">※成約時参加費3,000円は1回ごとの費用なので入れていない</span>' },
+
+  { id:'prime', name:'プライムオークション', fee:{kind:'rate', rate:8},
+    note:'買い手数料 <b>8%</b>' }
+];
+
+/* 会場の手数料を「段」の並びに直す。
+   一律％も商材別も、段が1つだけの tier として同じ形に揃えてしまう。
+   返すのは [{lo, hi, rate, yen}] （lo・hi はどちらもその額を含む）。 */
+function feeTiers(auction, catIndex) {
+  const f = auction.fee;
+  let tiers;
+  if (f.kind === 'tier') tiers = f.tiers;
+  else if (f.kind === 'cats') tiers = [{ hi: Infinity, rate: f.cats[catIndex] ? f.cats[catIndex].rate : 0 }];
+  else if (f.kind === 'rate') tiers = [{ hi: Infinity, rate: f.rate }];
+  else tiers = [{ hi: Infinity, rate: parseFloat(document.getElementById('auctionFeeRate').value) || 0 }];
+  let lo = 0;
+  return tiers.map(t => {
+    const o = { lo: lo, hi: t.hi, rate: t.rate || 0, yen: t.yen || 0 };
+    lo = t.hi === Infinity ? Infinity : t.hi + 1;
+    return o;
+  });
+}
+
+/* 段のある手数料でも正しい仕入れ値を出すための解き方。
+
+   むずかしいのは、手数料が仕入れ値で決まるのに、その仕入れ値を求めたいところ。
+   （5万円で買えば手数料2,000円、4万9千円なら1,000円、というように行ったり来たりする）
+
+   そこで「その段だと決めつけて計算し、出てきた答えがその段に収まっているか確かめる」
+   というやり方をとる。収まっていればそれが答え。
+   収まらず段を飛び越したときは、その段のいちばん上（例：49,999円）が答えになる。
+   最後に、見つかった候補のうち<いちばん高く出せる額>を採る。
+
+   solveB(率, 定額) は「その率・その定額だとしたら、いくらまで出せるか」を返す関数で、
+   小売・業販外税・業販内税の3通りをそれぞれ呼び出し側で用意する。 */
+function solveWithTiers(tiers, solveB) {
+  let best = null;
+  let used = null;
+  tiers.forEach(t => {
+    const B = Math.floor(solveB(t.rate / 100, t.yen));
+    let cand = null;
+    if (B >= t.lo && B <= t.hi) cand = B;            // この段に収まった
+    else if (B > t.hi) cand = t.hi;                  // 段を飛び越した → その段の上限まで
+    if (cand !== null && cand > 0 && (best === null || cand > best)) { best = cand; used = t; }
+  });
+  if (best === null) return { bid: 0, tier: tiers[0] };
+  return { bid: best, tier: used };
+}
 
 function yen(n){ return '¥' + Math.round(n).toLocaleString('ja-JP'); }
 
+let currentMode = 'retail';
+
+const modeState = {
+  retail:    { initialized:false, platformFee:10, margin:20, auctionId:'aucnet', catIndex:0, customFee:5 },
+  wholesale: { initialized:false, platformFee:3,  margin:10, auctionId:'aucnet', catIndex:0, customFee:5,
+               taxIn:false, otherCost:0 }
+};
+
+/* 会場の選択だけは次に開いたときも覚えておく */
+const SAVE_KEY = 'siirene_auction_v1';
+function saveChoice() {
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify({
+      retail:    { auctionId: modeState.retail.auctionId,    catIndex: modeState.retail.catIndex },
+      wholesale: { auctionId: modeState.wholesale.auctionId, catIndex: modeState.wholesale.catIndex }
+    }));
+  } catch (e) {}
+}
+function loadChoice() {
+  try {
+    const o = JSON.parse(localStorage.getItem(SAVE_KEY) || '{}');
+    ['retail','wholesale'].forEach(m => {
+      if (o[m] && AUCTIONS.some(a => a.id === o[m].auctionId)) {
+        modeState[m].auctionId = o[m].auctionId;
+        modeState[m].catIndex  = o[m].catIndex || 0;
+      }
+    });
+  } catch (e) {}
+}
+
+/* ---------------------------------------------------------- 会場のUI */
+function buildAuctionSelect() {
+  const sel = document.getElementById('auctionSelect');
+  sel.innerHTML = AUCTIONS.map(a => '<option value="' + a.id + '">' + a.name + '</option>').join('');
+}
+
+function currentAuction() {
+  return AUCTIONS.find(a => a.id === modeState[currentMode].auctionId) || AUCTIONS[0];
+}
+
+function syncAuctionUI() {
+  const s = modeState[currentMode];
+  const a = currentAuction();
+  document.getElementById('auctionSelect').value = a.id;
+
+  const catSel = document.getElementById('auctionCat');
+  if (a.fee.kind === 'cats') {
+    catSel.innerHTML = a.fee.cats.map((c, i) =>
+      '<option value="' + i + '">' + c.label + '（' + c.rate + '%）</option>').join('');
+    if (s.catIndex >= a.fee.cats.length) s.catIndex = 0;
+    catSel.value = String(s.catIndex);
+    catSel.style.display = 'block';
+  } else {
+    catSel.style.display = 'none';
+  }
+
+  const customLabel = document.getElementById('customFeeLabel');
+  if (a.fee.kind === 'custom') {
+    customLabel.style.display = 'block';
+    document.getElementById('auctionFeeRate').value = s.customFee;
+  } else {
+    customLabel.style.display = 'none';
+  }
+
+  let note = a.note || '';
+  if (a.fee.kind === 'cats') {
+    note += '<br><span class="sub">※念のため高いほうを最初に選んであります。'
+          + '商材を選び直すと正確になります。</span>';
+  }
+  document.getElementById('feeNote').innerHTML = note;
+}
+
+/* ---------------------------------------------------------- モード */
 function applyModeValues() {
   const s = modeState[currentMode];
   document.getElementById('platformFee').value = s.platformFee;
-  document.getElementById('auctionFeeRate').value = s.auctionFee;
   document.getElementById('margin').value = s.margin;
   if (currentMode === 'wholesale') {
     document.getElementById('wholesaleTaxIn').checked = !!s.taxIn;
     document.getElementById('otherCostYen').value = typeof s.otherCost === 'number' ? s.otherCost : 0;
   }
+  syncAuctionUI();
 }
 
 function saveCurrentInputsToMode() {
   const s = modeState[currentMode];
   s.platformFee = parseFloat(document.getElementById('platformFee').value) || 0;
-  s.auctionFee  = parseFloat(document.getElementById('auctionFeeRate').value) || 0;
   s.margin      = parseFloat(document.getElementById('margin').value) || 0;
+  if (currentAuction().fee.kind === 'custom') {
+    s.customFee = parseFloat(document.getElementById('auctionFeeRate').value) || 0;
+  }
   if (currentMode === 'wholesale') {
-    s.taxIn    = document.getElementById('wholesaleTaxIn').checked;
+    s.taxIn     = document.getElementById('wholesaleTaxIn').checked;
     s.otherCost = parseFloat(document.getElementById('otherCostYen').value) || 0;
   }
   s.initialized = true;
@@ -171,12 +371,8 @@ function syncUI() {
   document.getElementById('btnRetail').classList.toggle('active', isRetail);
   document.getElementById('btnWholesale').classList.toggle('active', !isRetail);
 
-  if (!modeState[currentMode].initialized) {
-    applyModeValues();
-    modeState[currentMode].initialized = true;
-  } else {
-    applyModeValues();
-  }
+  applyModeValues();
+  modeState[currentMode].initialized = true;
 
   if (isRetail) {
     const cur = document.getElementById('currency').value;
@@ -187,31 +383,33 @@ function syncUI() {
 }
 
 document.getElementById('btnRetail').addEventListener('click', () => {
-  saveCurrentInputsToMode();
-  currentMode = 'retail';
-  syncUI();
+  saveCurrentInputsToMode(); currentMode = 'retail'; syncUI();
 });
 document.getElementById('btnWholesale').addEventListener('click', () => {
-  saveCurrentInputsToMode();
-  currentMode = 'wholesale';
-  syncUI();
+  saveCurrentInputsToMode(); currentMode = 'wholesale'; syncUI();
 });
 
-// 入力のたびに保存
-['platformFee','auctionFeeRate','margin','wholesaleTaxIn','otherCostYen'].forEach(id => {
+document.getElementById('auctionSelect').addEventListener('change', (e) => {
+  modeState[currentMode].auctionId = e.target.value;
+  modeState[currentMode].catIndex = 0;
+  syncAuctionUI(); saveChoice();
+});
+document.getElementById('auctionCat').addEventListener('change', (e) => {
+  modeState[currentMode].catIndex = parseInt(e.target.value, 10) || 0;
+  syncAuctionUI(); saveChoice();
+});
+
+['platformFee','margin','wholesaleTaxIn','otherCostYen','auctionFeeRate'].forEach(id => {
   const el = document.getElementById(id);
-  if (!el) return;
-  el.addEventListener('input', () => {
-    saveCurrentInputsToMode();
-  });
+  if (el) el.addEventListener('input', saveCurrentInputsToMode);
 });
 
-// 為替（小売のみ）
+/* 為替（小売のみ） */
 async function fetchFx() {
   try {
     const res = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
     const json = await res.json();
-    const rate = json?.rates?.JPY;
+    const rate = json && json.rates && json.rates.JPY;
     if (rate) document.getElementById('fxRate').value = Number(rate).toFixed(2);
   } catch(e){}
 }
@@ -221,13 +419,11 @@ document.getElementById('currency').addEventListener('change', () => {
   if (cur === 'USD' && !document.getElementById('fxRate').value) fetchFx();
 });
 
+buildAuctionSelect();
+loadChoice();
 syncUI();
 
-/* ===== Enterキーで計算 =====
-   入力欄のどこでEnterを押しても「仕入れ値を計算」を押したことにする。
-   ・日本語変換の確定Enterは無視する(isComposing / keyCode 229)
-   ・小売/業販の切替ボタンにフォーカスがあるときは、そのボタン本来の動作を優先する
-   ・inputは1行なのでフォーム送信は起きないが、念のためpreventDefaultしておく */
+/* ===== Enterキーで計算 ===== */
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Enter' || e.isComposing || e.keyCode === 229) return;
   if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -238,101 +434,122 @@ document.addEventListener('keydown', (e) => {
   const btn = document.getElementById('calcBtn');
   if (btn) {
     btn.click();
-    // 押したことが分かるように一瞬だけ色を変える
     const bg = btn.style.background;
     btn.style.background = '#eaf3ff';
     setTimeout(() => { btn.style.background = bg; }, 150);
   }
 });
 
+/* その段が実際にいくらの手数料になるかを、言葉で書く */
+function tierLabel(auction, tier, catIndex) {
+  if (auction.fee.kind === 'cats') return auction.fee.cats[catIndex].label + ' ' + tier.rate + '%';
+  if (auction.fee.kind === 'custom') return '手入力 ' + tier.rate + '%';
+  if (auction.fee.kind === 'rate') return tier.rate + '%';
+  const lo = tier.lo.toLocaleString('ja-JP');
+  const hi = tier.hi === Infinity ? '〜' : '〜' + tier.hi.toLocaleString('ja-JP') + '円';
+  const range = lo + '円' + hi;
+  return range + ' → ' + (tier.yen ? '定額' + tier.yen.toLocaleString('ja-JP') + '円' : tier.rate + '%');
+}
+
 /* ===== 計算ボタン ===== */
 document.getElementById('calcBtn').addEventListener('click', () => {
+  saveCurrentInputsToMode();
   const isRetail = currentMode === 'retail';
+  const s = modeState[currentMode];
+  const auction = currentAuction();
+  const tiers = feeTiers(auction, s.catIndex);
 
   const saleInput = parseFloat(document.getElementById('salePrice').value) || 0;
-  const pf = (parseFloat(document.getElementById('platformFee').value) || 0) / 100;
-  const auction = (parseFloat(document.getElementById('auctionFeeRate').value) || 0) / 100;
-  const tax = (parseFloat(document.getElementById('tax').value) || 0) / 100;
+  const pf     = (parseFloat(document.getElementById('platformFee').value) || 0) / 100;
+  const tax    = (parseFloat(document.getElementById('tax').value) || 0) / 100;
   const margin = (parseFloat(document.getElementById('margin').value) || 0) / 100;
 
-  /* ===== 小売（元ロジック） ===== */
+  /* ===== 小売 ===== */
   if (isRetail) {
     let saleJPY = saleInput;
-    const cur = document.getElementById('currency').value;
-    if (cur === 'USD') {
-      const fx = parseFloat(document.getElementById('fxRate').value) || 0;
-      saleJPY = saleInput * fx;
+    if (document.getElementById('currency').value === 'USD') {
+      saleJPY = saleInput * (parseFloat(document.getElementById('fxRate').value) || 0);
     }
-
     const shipping = parseFloat(document.getElementById('shippingYen').value) || 0;
     const listing  = parseFloat(document.getElementById('listingFeeYen').value) || 0;
 
     const netSale = saleJPY * (1 - pf);
-    const targetCost = netSale * (1 - margin);
-    const available = Math.max(targetCost - shipping - listing, 0);
-    const preTax = available / (1 + tax + auction);
-    const auctionYen = preTax * auction;
-    const totalCost = preTax * (1 + tax) + auctionYen + shipping + listing;
-    const profit = netSale - totalCost;
+    const available = Math.max(netSale * (1 - margin) - shipping - listing, 0);
+
+    //   available = 仕入れ値*(1+消費税) + 仕入手数料
+    const res = solveWithTiers(tiers, (rate, fixed) =>
+      Math.max((available - fixed) / (1 + tax + rate), 0));
+
+    const preTax     = res.bid;
+    const auctionYen = preTax * (res.tier.rate / 100) + res.tier.yen;
+    const totalCost  = preTax * (1 + tax) + auctionYen + shipping + listing;
+    const profit     = netSale - totalCost;
 
     document.getElementById('result').innerHTML =
       '仕入れ値 (税抜) ≒ ' + yen(preTax) + '<br>' +
-      '利益額 ≒ ' + yen(profit);
-
-    saveCurrentInputsToMode();
+      '利益額 ≒ ' + yen(profit) +
+      '<div class="breakdown">' +
+        '仕入手数料 ' + yen(auctionYen) + '　<span style="color:#1f3f7a;">' + auction.name + '：' + tierLabel(auction, res.tier, s.catIndex) + '</span><br>' +
+        '仕入消費税 ' + yen(preTax * tax) + '／送料・出品代行 ' + yen(shipping + listing) + '<br>' +
+        '総原価 ' + yen(totalCost) + '／販売手数料を引いた売上 ' + yen(netSale) +
+      '</div>';
     return;
   }
 
   /* ===== 業販 ===== */
   const other = parseFloat(document.getElementById('otherCostYen').value) || 0;
-  const taxInMode = document.getElementById('wholesaleTaxIn').checked;
 
-  if (taxInMode) {
-    // ここが今回の「内税業販」ロジック
-    // 1. 売価は税抜で入力される
-    const saleEx  = saleInput;       // 例: 100000
-    const saleInc = saleEx * 1.10;   // 税込売上 110000
-    // 2. プラットフォーム手数料は税抜売価に対して
-    const pfYen = saleEx * pf;       // 100000 * 0.03 = 3000
-    // 3. 利益は税込売上に対して
-    const targetProfit = saleInc * margin;   // 110000 * 0.1 = 11000
+  if (document.getElementById('wholesaleTaxIn').checked) {
+    /* 内税：売価は税抜で入力。利益は税込売上に対して見る。 */
+    const saleEx  = saleInput;
+    const saleInc = saleEx * (1 + tax);
+    const pfYen   = saleEx * pf;
+    const targetProfit = saleInc * margin;
+    const available = Math.max(saleInc - targetProfit - pfYen - other, 0);
 
-    // 税込売上から、利益・PF・その他費用を引いて、
-    // 残りを「入札(税込) ＋ その5%」で割り戻す
-    const availableForBidAndAuction =
-      saleInc - targetProfit - pfYen - other;
+    //   available = 入札(税込) + 仕入手数料 　段の判定は税抜の落札額で行う
+    const res = solveWithTiers(tiers, (rate, fixed) =>
+      Math.max((available - fixed) / (1 + rate) / (1 + tax), 0));
 
-    // この残りが B + B*auction なので B = 残り / (1+auction)
-    const bidInc = availableForBidAndAuction / (1 + auction);   // 税込で入札できる最大額
-    const bidEx  = bidInc / 1.10;                                // 表示用に税抜へ
-    const auctionYen = bidInc * auction;
-
-    const totalCost =
-      pfYen + other + bidInc + auctionYen;
-
-    const profit = saleInc - totalCost;
+    const bidEx      = res.bid;
+    const bidInc     = bidEx * (1 + tax);
+    const auctionYen = bidInc * (res.tier.rate / 100) + res.tier.yen;
+    const totalCost  = pfYen + other + bidInc + auctionYen;
+    const profit     = saleInc - totalCost;
 
     document.getElementById('result').innerHTML =
       '仕入れ値 (税抜) ≒ ' + yen(bidEx) + '<br>' +
       '仕入れ値 (税込) ≒ ' + yen(bidInc) + '<br>' +
-      '利益額 ≒ ' + yen(profit);
+      '利益額 ≒ ' + yen(profit) +
+      '<div class="breakdown">' +
+        '仕入手数料 ' + yen(auctionYen) + '　<span style="color:#1f3f7a;">' + auction.name + '：' + tierLabel(auction, res.tier, s.catIndex) + '</span><br>' +
+        '販売手数料 ' + yen(pfYen) + '／その他費用 ' + yen(other) + '<br>' +
+        '総原価 ' + yen(totalCost) + '／税込売上 ' + yen(saleInc) +
+      '</div>';
 
   } else {
-    // これまでの業販（外税）計算
+    /* 外税 */
     const netSale = saleInput * (1 - pf);
-    const targetCost = netSale * (1 - margin);
-    const available = Math.max(targetCost - other, 0);
-    const preTax = available / (1 + auction);
-    const auctionYen = preTax * auction;
-    const totalCost = preTax + auctionYen + other;
-    const profit = netSale - totalCost;
+    const available = Math.max(netSale * (1 - margin) - other, 0);
+
+    //   available = 仕入れ値 + 仕入手数料
+    const res = solveWithTiers(tiers, (rate, fixed) =>
+      Math.max((available - fixed) / (1 + rate), 0));
+
+    const preTax     = res.bid;
+    const auctionYen = preTax * (res.tier.rate / 100) + res.tier.yen;
+    const totalCost  = preTax + auctionYen + other;
+    const profit     = netSale - totalCost;
 
     document.getElementById('result').innerHTML =
       '仕入れ値 (税抜) ≒ ' + yen(preTax) + '<br>' +
-      '利益額 ≒ ' + yen(profit);
+      '利益額 ≒ ' + yen(profit) +
+      '<div class="breakdown">' +
+        '仕入手数料 ' + yen(auctionYen) + '　<span style="color:#1f3f7a;">' + auction.name + '：' + tierLabel(auction, res.tier, s.catIndex) + '</span><br>' +
+        'その他費用 ' + yen(other) + '<br>' +
+        '総原価 ' + yen(totalCost) + '／販売手数料を引いた売上 ' + yen(netSale) +
+      '</div>';
   }
-
-  saveCurrentInputsToMode();
 });
 </script>
 </body>
