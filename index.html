@@ -110,6 +110,7 @@ button { cursor:pointer; }
 </div>
 
 <button id="calcBtn">仕入れ値（税抜）を計算</button>
+<div class="hint" style="text-align:center;">どの入力欄でも Enter で計算できます</div>
 
 <div id="result">仕入れ値 (税抜) ≒ ¥0<br>利益額 ≒ ¥0</div>
 
@@ -221,6 +222,28 @@ document.getElementById('currency').addEventListener('change', () => {
 });
 
 syncUI();
+
+/* ===== Enterキーで計算 =====
+   入力欄のどこでEnterを押しても「仕入れ値を計算」を押したことにする。
+   ・日本語変換の確定Enterは無視する(isComposing / keyCode 229)
+   ・小売/業販の切替ボタンにフォーカスがあるときは、そのボタン本来の動作を優先する
+   ・inputは1行なのでフォーム送信は起きないが、念のためpreventDefaultしておく */
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' || e.isComposing || e.keyCode === 229) return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const t = e.target;
+  const tag = t && t.tagName ? t.tagName.toUpperCase() : '';
+  if (tag === 'BUTTON' || tag === 'TEXTAREA') return;
+  e.preventDefault();
+  const btn = document.getElementById('calcBtn');
+  if (btn) {
+    btn.click();
+    // 押したことが分かるように一瞬だけ色を変える
+    const bg = btn.style.background;
+    btn.style.background = '#eaf3ff';
+    setTimeout(() => { btn.style.background = bg; }, 150);
+  }
+});
 
 /* ===== 計算ボタン ===== */
 document.getElementById('calcBtn').addEventListener('click', () => {
