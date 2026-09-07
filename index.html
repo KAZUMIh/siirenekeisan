@@ -3,143 +3,193 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>仕入れ値計算アプリ（売上比利益率）</title>
+<title>仕入れ値計算</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+CiAgPHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTQiIGZpbGw9IiMxZjNmN2EiLz4KICA8cGF0aCBkPSJNMjAgMTUgTDMyIDMxIEw0NCAxNSIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZmZmIiBzdHJva2Utd2lkdGg9IjciIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPgogIDxyZWN0IHg9IjI4LjUiIHk9IjI4IiB3aWR0aD0iNyIgaGVpZ2h0PSIyMyIgcng9IjIiIGZpbGw9IiNmZmYiLz4KICA8cmVjdCB4PSIxOCIgeT0iMzQiIHdpZHRoPSIyOCIgaGVpZ2h0PSI1LjUiIHJ4PSIyLjciIGZpbGw9IiNmZmYiLz4KICA8cmVjdCB4PSIxOCIgeT0iNDIuNSIgd2lkdGg9IjI4IiBoZWlnaHQ9IjUuNSIgcng9IjIuNyIgZmlsbD0iI2ZmZiIvPgo8L3N2Zz4K"/>
 <style>
+:root { --line:#e2e5ea; --muted:#7a7f88; }
+* { box-sizing:border-box; }
 body {
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, "Hiragino Kaku Gothic ProN", "Noto Sans JP", Meiryo, sans-serif;
-  max-width: 480px; margin: 2rem auto; padding: 1rem;
-  border: 1px solid #ddd; border-radius: 12px;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Kaku Gothic ProN", "Noto Sans JP", Meiryo, sans-serif;
+  max-width: 460px; margin: 1.2rem auto 3rem; padding: 0 1rem;
+  color:#1c1f24; background:#fff;
 }
-h1 { font-size: 1.2rem; margin: 0 0 .75rem; }
-label { display:block; margin-top: .9rem; font-weight:600; }
-input, select, button {
-  width:100%; padding:.55rem .65rem; box-sizing:border-box;
-  margin-top:.4rem; border:1px solid #ccc; border-radius:8px;
-  font-size: 1rem; font-family: inherit;
-}
-button { cursor:pointer; }
-.row { display:flex; gap:.6rem; }
-.row > div { flex:1; }
-.hint { font-size:.8rem; color:#777; margin-top:.25rem; }
-#result { margin-top:1.2rem; font-weight:700; white-space: normal; border-top:1px dashed #ddd; padding-top:1rem; }
-.hidden { display:none; }
+h1 { font-size: 1rem; margin: 0 0 .7rem; color:var(--muted); font-weight:700; }
 
-/* Mode toggle */
-.mode-toggle { display:flex; gap:.6rem; margin-bottom:.6rem; }
-.mode-btn {
-  flex:1; padding:.55rem .65rem; border:1px solid #ddd;
-  border-radius:9999px; background:#fafafa; font-weight:700;
-  text-align:center; transition:all .15s ease;
+input, select, button, textarea { font-size:1rem; font-family:inherit; }
+input[type=number], select {
+  width:100%; padding:.6rem .7rem; border:1px solid #ccd1d9; border-radius:9px; background:#fff;
 }
-.mode-btn:hover { filter:brightness(0.98); }
+input[type=number]:focus, select:focus { outline:2px solid #9db8e8; outline-offset:1px; border-color:#7f9fd8; }
+
+/* モード切替 */
+.mode-toggle { display:flex; gap:.5rem; margin-bottom:1rem; }
+.mode-btn {
+  flex:1; padding:.6rem; border:1px solid var(--line); border-radius:9999px;
+  background:#fafbfc; font-weight:700; cursor:pointer; transition:all .15s ease;
+}
 .mode-btn.retail.active { background:#ffe9e9; border-color:#ffbcbc; color:#9a2a2a; }
 .mode-btn.wholesale.active { background:#eaf3ff; border-color:#bfd8ff; color:#244b8a; }
 
-/* 仕入手数料ブロック */
-#auctionBlock { margin-top:.9rem; border:1px solid #e3e7ef; background:#f7f9fc; border-radius:10px; padding:.7rem .8rem .8rem; }
-#auctionBlock > label { margin-top:0; }
-#feeNote { font-size:.78rem; color:#555; margin-top:.45rem; line-height:1.5; }
+/* 1. 売価 */
+.field-label { font-size:.82rem; font-weight:700; color:var(--muted); margin-bottom:.3rem; }
+.sale-row { display:flex; gap:.5rem; }
+.sale-row #salePrice { flex:1; font-size:1.5rem; font-weight:700; padding:.6rem .7rem; text-align:right; }
+.sale-row #currency { width:88px; flex:none; }
+
+/* 2. 答え */
+.card { border-radius:14px; padding:.9rem 1rem 1rem; margin-top:.7rem; border:1px solid; }
+.card.retail    { background:#fff6f6; border-color:#ffd8d8; }
+.card.wholesale { background:#f3f8ff; border-color:#d2e2ff; }
+.rc-label { font-size:.78rem; font-weight:700; color:var(--muted); }
+.rc-main  { font-size:2.35rem; font-weight:800; line-height:1.1; letter-spacing:-.02em; margin:.05rem 0 .1rem; }
+.card.retail    .rc-main { color:#9a2a2a; }
+.card.wholesale .rc-main { color:#244b8a; }
+.rc-main.empty { color:#c3c7cd; font-size:1.5rem; font-weight:700; }
+.rc-inc { font-size:.85rem; color:var(--muted); font-weight:700; margin-bottom:.35rem; }
+.rc-profit { font-size:1.15rem; font-weight:800; }
+.rc-profit span { font-size:.82rem; font-weight:700; color:var(--muted); margin-left:.35rem; }
+.rc-fee {
+  font-size:.8rem; color:#454a52; margin-top:.6rem; padding-top:.55rem;
+  border-top:1px solid rgba(0,0,0,.08); line-height:1.6;
+}
+.rc-fee b { color:#1f3f7a; }
+details.bd { margin-top:.4rem; }
+details.bd summary { font-size:.78rem; color:var(--muted); cursor:pointer; }
+details.bd .in { font-size:.78rem; color:#555; line-height:1.8; margin-top:.3rem; }
+
+/* 3. オークション */
+.section { margin-top:1.1rem; }
+#auctionCat { margin-top:.4rem; }
+#feeNote { font-size:.78rem; color:#4a4f57; margin-top:.45rem; line-height:1.6; }
 #feeNote b { color:#1f3f7a; }
-#feeNote .sub { color:#888; }
-.breakdown { font-weight:400; font-size:.85rem; color:#555; margin-top:.5rem; line-height:1.7; border-top:1px solid #eee; padding-top:.5rem; }
+#feeNote .sub { color:#9aa0a8; }
+#customFeeWrap { margin-top:.5rem; display:none; }
+
+/* 4. その他の設定 */
+details.settings { margin-top:1.4rem; border-top:1px solid var(--line); padding-top:.8rem; }
+details.settings > summary {
+  cursor:pointer; font-size:.85rem; font-weight:700; color:#3b4048; list-style:none;
+  display:flex; align-items:baseline; gap:.4rem;
+}
+details.settings > summary::-webkit-details-marker { display:none; }
+details.settings > summary::before { content:'▸'; color:var(--muted); font-size:.75rem; flex:none; }
+details.settings[open] > summary::before { content:'▾'; }
+details.settings > summary > .lbl { flex:none; white-space:nowrap; }
+#settingsSummary { flex:1; font-weight:400; font-size:.76rem; color:var(--muted); line-height:1.5; }
+.settings-body { margin-top:.7rem; }
+.settings-body .field-label { margin-top:.85rem; }
+.settings-body .field-label:first-child { margin-top:0; }
+.row { display:flex; gap:.6rem; }
+.row > div { flex:1; }
+.hint { font-size:.75rem; color:#9aa0a8; margin-top:.25rem; }
+.check { display:flex; gap:.45rem; align-items:center; margin-top:.8rem; font-size:.88rem; font-weight:600; }
+.check input { width:auto; }
+.foot { margin-top:1.4rem; font-size:.74rem; color:#b0b5bc; text-align:center; line-height:1.7; }
 </style>
 </head>
 <body>
-<h1>仕入れ値計算アプリ（売上比利益率）</h1>
 
-<div aria-label="モード切替" class="mode-toggle" role="tablist">
+<h1>仕入れ値計算（売上比利益率）</h1>
+
+<div class="mode-toggle" role="tablist" aria-label="モード切替">
   <button class="mode-btn retail active" id="btnRetail">小売（内税）</button>
   <button class="mode-btn wholesale" id="btnWholesale">業販（外税）</button>
 </div>
 
-<!-- ▼ 小売 -->
-<div id="currencySection">
-  <label>売価通貨（小売のみ）
-    <select id="currency">
-      <option value="JPY">JPY（円）</option>
-      <option value="USD">USD（米ドル）</option>
-    </select>
-  </label>
-  <label id="fxLabel" style="display:none;">
-    為替レート（1 USD = JPY）
-    <input id="fxRate" readonly type="number"/>
-    <div class="hint">※自動取得（失敗時は手入力）</div>
-  </label>
+<!-- 1. 売価 -->
+<div class="field-label" id="salePriceLabel">売価（円）</div>
+<div class="sale-row">
+  <input id="salePrice" type="number" inputmode="numeric" placeholder="0"/>
+  <select id="currency">
+    <option value="JPY">JPY</option>
+    <option value="USD">USD</option>
+  </select>
+</div>
+<div id="fxWrap" style="display:none;margin-top:.5rem;">
+  <div class="field-label">為替レート（1 USD = JPY）</div>
+  <input id="fxRate" type="number"/>
+  <div class="hint">※自動取得。取れないときは手入力してください</div>
 </div>
 
-<label><span id="salePriceLabel">売価（表示通貨）</span>
-  <input id="salePrice" placeholder="例: 65000（JPY）/ 500（USD）" type="number"/>
-</label>
-
-<div id="retailExtras">
-  <label>送料(円・原価に加算)
-    <input id="shippingYen" type="number" value="700"/>
-  </label>
-  <label>出品代行手数料(円・原価に加算)
-    <input id="listingFeeYen" type="number" value="1320"/>
-    <div class="hint">※売価通貨がUSDでも円で計上</div>
-  </label>
+<!-- 2. 答え -->
+<div class="card retail" id="resultCard">
+  <div class="rc-label">仕入れ値（税抜）</div>
+  <div class="rc-main empty" id="rcMain">売価を入れてください</div>
+  <div class="rc-inc" id="rcInc" style="display:none;"></div>
+  <div class="rc-profit" id="rcProfit" style="display:none;"></div>
+  <div class="rc-fee" id="rcFee" style="display:none;"></div>
+  <details class="bd" id="rcBreakdown" style="display:none;">
+    <summary>内訳</summary>
+    <div class="in" id="rcBreakdownIn"></div>
+  </details>
 </div>
 
-<!-- ▼ 業販（外税）＋内税モード -->
-<div class="hidden" id="wholesaleExtras" style="display:none;">
-  <label>その他費用（円）
-    <input id="otherCostYen" type="number" value="0"/>
-  </label>
-  <label style="display:flex; gap:.45rem; align-items:center; margin-top:.6rem;">
-    <input id="wholesaleTaxIn" type="checkbox" style="width:auto; margin-top:0;"/>
-    業販を内税で計算する（売価は税抜を入力）
-  </label>
-</div>
-
-<div class="row">
-  <div>
-    <label>販売手数料（%）
-      <input id="platformFee" type="number" value="10"/>
-    </label>
-  </div>
-  <div>
-    <label>仕入消費税（%）
-      <input id="tax" type="number" value="10"/>
-    </label>
-  </div>
-</div>
-
-<label>目標利益率（%）<small>（売上比）</small>
-  <input id="margin" type="number" value="20"/>
-</label>
-
-<!-- ▼ 仕入手数料（買い手数料） -->
-<div id="auctionBlock">
-  <label style="font-size:.95rem;">仕入手数料（オークション）
-    <select id="auctionSelect"></select>
-  </label>
+<!-- 3. オークション -->
+<div class="section">
+  <div class="field-label">仕入手数料（オークション）</div>
+  <select id="auctionSelect"></select>
   <select id="auctionCat" style="display:none;"></select>
-  <label id="customFeeLabel" style="display:none; font-weight:400; font-size:.85rem; margin-top:.5rem;">
-    手数料（%）
+  <div id="customFeeWrap">
+    <div class="field-label" style="margin-top:.5rem;">手数料（%）</div>
     <input id="auctionFeeRate" type="number" value="5"/>
-  </label>
+  </div>
   <div id="feeNote"></div>
 </div>
 
-<button id="calcBtn" style="margin-top:1rem;">仕入れ値（税抜）を計算</button>
-<div class="hint" style="text-align:center;">どの入力欄でも Enter で計算できます</div>
+<!-- 4. その他の設定 -->
+<details class="settings" id="settings">
+  <summary><span class="lbl">その他の設定</span><span id="settingsSummary"></span></summary>
+  <div class="settings-body">
 
-<div id="result">仕入れ値 (税抜) ≒ ¥0<br>利益額 ≒ ¥0</div>
+    <div id="retailExtras">
+      <div class="field-label">送料（円・原価に加算）</div>
+      <input id="shippingYen" type="number" value="700"/>
+      <div class="field-label">出品代行手数料（円・原価に加算）</div>
+      <input id="listingFeeYen" type="number" value="1320"/>
+      <div class="hint">※売価がUSDでも円で計上</div>
+    </div>
+
+    <div id="wholesaleExtras" style="display:none;">
+      <div class="field-label">その他費用（円）</div>
+      <input id="otherCostYen" type="number" value="0"/>
+      <label class="check">
+        <input id="wholesaleTaxIn" type="checkbox"/>
+        業販を内税で計算する（売価は税抜を入力）
+      </label>
+    </div>
+
+    <div class="row" style="margin-top:.85rem;">
+      <div>
+        <div class="field-label">販売手数料（%）</div>
+        <input id="platformFee" type="number" value="10"/>
+      </div>
+      <div>
+        <div class="field-label">仕入消費税（%）</div>
+        <input id="tax" type="number" value="10"/>
+      </div>
+    </div>
+
+    <div class="field-label">目標利益率（%・売上比）</div>
+    <input id="margin" type="number" value="20"/>
+
+  </div>
+</details>
+
+<div class="foot">入力するとその場で計算します<br>設定は次に開いたときも残ります</div>
 
 <script>
 /* =====================================================================
    仕入手数料（＝落札したときに会場へ払う「買い手数料」）の一覧。
    「手数料まとめ」に書いてある落札手数料をそのまま入れてある。
 
-   手数料の形は3通りある。
+   手数料の形は3通り。
      rate  … 一律の％
      tier  … 落札金額の段で変わる（％のことも、定額◯◯円のこともある）
-     cats  … 商材（ジュエリー／時計／バッグ など）で変わる
+     cats  … 商材（バッグ／ジュエリー／時計 など）で変わる
 
    ★ブランドでは変わらない。変わるのは「商材」だけで、3会場のみ。
-     ブランド別に変わるのは YBA の“出品(売り)手数料”で、こちらは買いには関係しない。
+     ブランド別に変わるのは YBA の“出品(売り)手数料”で、買いには関係しない。
+     商材は バッグ → ジュエリー の順に並べてある。
 
    tier の hi は「その段に入る上限額（その額を含む）」。
    ＋税と書いてある会場は、実際に払う額に合わせて税込の率で入れてある。
@@ -159,8 +209,8 @@ const AUCTIONS = [
        + '50万円未満4,000円／100万円未満8,000円／100万円以上10,000円</span>' },
 
   { id:'starbuyers', name:'スターバイヤー', fee:{kind:'cats', cats:[
-      {label:'アパレル・靴・シルバーブランド', rate:10},
-      {label:'時計・ジュエリー・バッグ・アクセサリー・小物', rate:5}]},
+      {label:'バッグ・ジュエリー・時計・アクセサリー・小物', rate:5},
+      {label:'アパレル・靴・シルバーブランド', rate:10}]},
     note:'商材で変わる。' },
 
   { id:'jba_tokyo', name:'JBAオークション東京', fee:{kind:'tier', tiers:[
@@ -168,7 +218,7 @@ const AUCTIONS = [
     note:'落札手数料 <b>1万円未満は1点500円／1万円以上は1%</b>' },
 
   { id:'jba_kanazawa', name:'JBAオークション金沢', fee:{kind:'cats', cats:[
-      {label:'バッグ・その他', rate:1},
+      {label:'バッグ・ジュエリー・その他', rate:1},
       {label:'時計（落札手数料は免除）', rate:0}]},
     note:'落札手数料 <b>1%</b>。時計だけ免除。' },
 
@@ -194,7 +244,7 @@ const AUCTIONS = [
       {label:'ブランド品（バッグ・小物）', rate:5},
       {label:'ジュエリー', rate:3},
       {label:'時計', rate:3}]},
-    note:'商材で変わる。' },
+    note:'商材で変わる。ブランド品だけ5%で、ジュエリーと時計は3%。' },
 
   { id:'trefac', name:'トレファクオークション', fee:{kind:'tier', tiers:[
       {hi:199999, rate:5.5}, {hi:Infinity, rate:1.1}]},
@@ -216,16 +266,19 @@ const AUCTIONS = [
     note:'買い手数料 <b>8%</b>' }
 ];
 
-/* 会場の手数料を「段」の並びに直す。
-   一律％も商材別も、段が1つだけの tier として同じ形に揃えてしまう。
-   返すのは [{lo, hi, rate, yen}] （lo・hi はどちらもその額を含む）。 */
+const $ = (id) => document.getElementById(id);
+function yen(n){ return '¥' + Math.round(n).toLocaleString('ja-JP'); }
+function num(id){ return parseFloat($(id).value) || 0; }
+
+/* 会場の手数料を「段」の並びに直す。一律％も商材別も、段が1つだけの tier として扱う。
+   返すのは [{lo, hi, rate, yen}]（lo・hi はどちらもその額を含む）。 */
 function feeTiers(auction, catIndex) {
   const f = auction.fee;
   let tiers;
   if (f.kind === 'tier') tiers = f.tiers;
   else if (f.kind === 'cats') tiers = [{ hi: Infinity, rate: f.cats[catIndex] ? f.cats[catIndex].rate : 0 }];
   else if (f.kind === 'rate') tiers = [{ hi: Infinity, rate: f.rate }];
-  else tiers = [{ hi: Infinity, rate: parseFloat(document.getElementById('auctionFeeRate').value) || 0 }];
+  else tiers = [{ hi: Infinity, rate: num('auctionFeeRate') }];
   let lo = 0;
   return tiers.map(t => {
     const o = { lo: lo, hi: t.hi, rate: t.rate || 0, yen: t.yen || 0 };
@@ -237,77 +290,70 @@ function feeTiers(auction, catIndex) {
 /* 段のある手数料でも正しい仕入れ値を出すための解き方。
 
    むずかしいのは、手数料が仕入れ値で決まるのに、その仕入れ値を求めたいところ。
-   （5万円で買えば手数料2,000円、4万9千円なら1,000円、というように行ったり来たりする）
+   （5万円で買えば手数料2,000円、4万9千円なら1,000円、と行ったり来たりする）
 
-   そこで「その段だと決めつけて計算し、出てきた答えがその段に収まっているか確かめる」
-   というやり方をとる。収まっていればそれが答え。
-   収まらず段を飛び越したときは、その段のいちばん上（例：49,999円）が答えになる。
-   最後に、見つかった候補のうち<いちばん高く出せる額>を採る。
-
-   solveB(率, 定額) は「その率・その定額だとしたら、いくらまで出せるか」を返す関数で、
-   小売・業販外税・業販内税の3通りをそれぞれ呼び出し側で用意する。 */
+   そこで「その段だと決めつけて計算し、答えがその段に収まっているか確かめる」。
+   収まっていればそれが答え。段を飛び越したときは、その段のいちばん上
+   （例：49,999円）が答えになる。最後に、候補のうち一番高く出せる額を採る。 */
 function solveWithTiers(tiers, solveB) {
-  let best = null;
-  let used = null;
+  let best = null, used = null;
   tiers.forEach(t => {
     const B = Math.floor(solveB(t.rate / 100, t.yen));
     let cand = null;
-    if (B >= t.lo && B <= t.hi) cand = B;            // この段に収まった
-    else if (B > t.hi) cand = t.hi;                  // 段を飛び越した → その段の上限まで
+    if (B >= t.lo && B <= t.hi) cand = B;
+    else if (B > t.hi) cand = t.hi;
     if (cand !== null && cand > 0 && (best === null || cand > best)) { best = cand; used = t; }
   });
   if (best === null) return { bid: 0, tier: tiers[0] };
   return { bid: best, tier: used };
 }
 
-function yen(n){ return '¥' + Math.round(n).toLocaleString('ja-JP'); }
-
+/* -------------------------------------------------------------- 状態 */
 let currentMode = 'retail';
-
 const modeState = {
-  retail:    { initialized:false, platformFee:10, margin:20, auctionId:'aucnet', catIndex:0, customFee:5 },
-  wholesale: { initialized:false, platformFee:3,  margin:10, auctionId:'aucnet', catIndex:0, customFee:5,
+  retail:    { platformFee:10, margin:20, tax:10, auctionId:'aucnet', catIndex:0, customFee:5,
+               shipping:700, listing:1320 },
+  wholesale: { platformFee:3,  margin:10, tax:10, auctionId:'aucnet', catIndex:0, customFee:5,
                taxIn:false, otherCost:0 }
 };
+const SAVE_KEY = 'siirene_v3';
 
-/* 会場の選択だけは次に開いたときも覚えておく */
-const SAVE_KEY = 'siirene_auction_v1';
-function saveChoice() {
-  try {
-    localStorage.setItem(SAVE_KEY, JSON.stringify({
-      retail:    { auctionId: modeState.retail.auctionId,    catIndex: modeState.retail.catIndex },
-      wholesale: { auctionId: modeState.wholesale.auctionId, catIndex: modeState.wholesale.catIndex }
-    }));
-  } catch (e) {}
+function saveAll() {
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify({ mode: currentMode, state: modeState })); } catch (e) {}
 }
-function loadChoice() {
+function loadAll() {
   try {
-    const o = JSON.parse(localStorage.getItem(SAVE_KEY) || '{}');
+    const o = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null');
+    if (!o) return;
     ['retail','wholesale'].forEach(m => {
-      if (o[m] && AUCTIONS.some(a => a.id === o[m].auctionId)) {
-        modeState[m].auctionId = o[m].auctionId;
-        modeState[m].catIndex  = o[m].catIndex || 0;
-      }
+      if (o.state && o.state[m]) Object.assign(modeState[m], o.state[m]);
+      if (!AUCTIONS.some(a => a.id === modeState[m].auctionId)) modeState[m].auctionId = 'aucnet';
     });
+    if (o.mode === 'retail' || o.mode === 'wholesale') currentMode = o.mode;
   } catch (e) {}
-}
-
-/* ---------------------------------------------------------- 会場のUI */
-function buildAuctionSelect() {
-  const sel = document.getElementById('auctionSelect');
-  sel.innerHTML = AUCTIONS.map(a => '<option value="' + a.id + '">' + a.name + '</option>').join('');
 }
 
 function currentAuction() {
   return AUCTIONS.find(a => a.id === modeState[currentMode].auctionId) || AUCTIONS[0];
 }
 
-function syncAuctionUI() {
+/* ---------------------------------------------------------- 画面へ反映 */
+function fillInputsFromState() {
   const s = modeState[currentMode];
-  const a = currentAuction();
-  document.getElementById('auctionSelect').value = a.id;
+  $('platformFee').value = s.platformFee;
+  $('margin').value      = s.margin;
+  $('tax').value         = s.tax;
+  if (currentMode === 'retail') {
+    $('shippingYen').value  = s.shipping;
+    $('listingFeeYen').value = s.listing;
+  } else {
+    $('wholesaleTaxIn').checked = !!s.taxIn;
+    $('otherCostYen').value = s.otherCost;
+  }
+  $('auctionSelect').value = s.auctionId;
 
-  const catSel = document.getElementById('auctionCat');
+  const a = currentAuction();
+  const catSel = $('auctionCat');
   if (a.fee.kind === 'cats') {
     catSel.innerHTML = a.fee.cats.map((c, i) =>
       '<option value="' + i + '">' + c.label + '（' + c.rate + '%）</option>').join('');
@@ -318,90 +364,199 @@ function syncAuctionUI() {
     catSel.style.display = 'none';
   }
 
-  const customLabel = document.getElementById('customFeeLabel');
   if (a.fee.kind === 'custom') {
-    customLabel.style.display = 'block';
-    document.getElementById('auctionFeeRate').value = s.customFee;
+    $('customFeeWrap').style.display = 'block';
+    $('auctionFeeRate').value = s.customFee;
   } else {
-    customLabel.style.display = 'none';
+    $('customFeeWrap').style.display = 'none';
   }
 
   let note = a.note || '';
   if (a.fee.kind === 'cats') {
-    note += '<br><span class="sub">※念のため高いほうを最初に選んであります。'
-          + '商材を選び直すと正確になります。</span>';
+    note += '<br><span class="sub">※バッグ→ジュエリーの順に並べてあります。'
+          + '違う商材のときは選び直してください。</span>';
   }
-  document.getElementById('feeNote').innerHTML = note;
+  $('feeNote').innerHTML = note;
 }
 
-/* ---------------------------------------------------------- モード */
-function applyModeValues() {
+function readInputsToState() {
   const s = modeState[currentMode];
-  document.getElementById('platformFee').value = s.platformFee;
-  document.getElementById('margin').value = s.margin;
-  if (currentMode === 'wholesale') {
-    document.getElementById('wholesaleTaxIn').checked = !!s.taxIn;
-    document.getElementById('otherCostYen').value = typeof s.otherCost === 'number' ? s.otherCost : 0;
-  }
-  syncAuctionUI();
-}
-
-function saveCurrentInputsToMode() {
-  const s = modeState[currentMode];
-  s.platformFee = parseFloat(document.getElementById('platformFee').value) || 0;
-  s.margin      = parseFloat(document.getElementById('margin').value) || 0;
-  if (currentAuction().fee.kind === 'custom') {
-    s.customFee = parseFloat(document.getElementById('auctionFeeRate').value) || 0;
-  }
-  if (currentMode === 'wholesale') {
-    s.taxIn     = document.getElementById('wholesaleTaxIn').checked;
-    s.otherCost = parseFloat(document.getElementById('otherCostYen').value) || 0;
-  }
-  s.initialized = true;
-}
-
-function syncUI() {
-  const isRetail = currentMode === 'retail';
-  document.getElementById('currencySection').style.display = isRetail ? 'block' : 'none';
-  document.getElementById('retailExtras').style.display    = isRetail ? 'block' : 'none';
-  document.getElementById('wholesaleExtras').style.display = isRetail ? 'none'  : 'block';
-
-  document.getElementById('salePriceLabel').innerText = isRetail ? '売価（表示通貨）' : '売価（円）';
-
-  document.getElementById('btnRetail').classList.toggle('active', isRetail);
-  document.getElementById('btnWholesale').classList.toggle('active', !isRetail);
-
-  applyModeValues();
-  modeState[currentMode].initialized = true;
-
-  if (isRetail) {
-    const cur = document.getElementById('currency').value;
-    document.getElementById('fxLabel').style.display = (cur === 'USD') ? 'block' : 'none';
+  s.platformFee = num('platformFee');
+  s.margin      = num('margin');
+  s.tax         = num('tax');
+  if (currentMode === 'retail') {
+    s.shipping = num('shippingYen');
+    s.listing  = num('listingFeeYen');
   } else {
-    document.getElementById('fxLabel').style.display = 'none';
+    s.taxIn     = $('wholesaleTaxIn').checked;
+    s.otherCost = num('otherCostYen');
   }
+  if (currentAuction().fee.kind === 'custom') s.customFee = num('auctionFeeRate');
 }
 
-document.getElementById('btnRetail').addEventListener('click', () => {
-  saveCurrentInputsToMode(); currentMode = 'retail'; syncUI();
-});
-document.getElementById('btnWholesale').addEventListener('click', () => {
-  saveCurrentInputsToMode(); currentMode = 'wholesale'; syncUI();
-});
+function updateSettingsSummary() {
+  const s = modeState[currentMode];
+  const parts = ['利益率' + s.margin + '%', '販売手数料' + s.platformFee + '%'];
+  if (currentMode === 'retail') parts.push('送料+代行 ' + yen(s.shipping + s.listing));
+  else { if (s.otherCost) parts.push('その他 ' + yen(s.otherCost)); if (s.taxIn) parts.push('内税'); }
+  parts.push('消費税' + s.tax + '%');
+  $('settingsSummary').textContent = '（' + parts.join('／') + '）';
+}
 
-document.getElementById('auctionSelect').addEventListener('change', (e) => {
+function syncMode() {
+  const isRetail = currentMode === 'retail';
+  $('retailExtras').style.display    = isRetail ? 'block' : 'none';
+  $('wholesaleExtras').style.display = isRetail ? 'none'  : 'block';
+  $('currency').style.display        = isRetail ? 'block' : 'none';
+  $('salePriceLabel').textContent    = isRetail ? '売価（表示通貨）' : '売価（円）';
+  $('btnRetail').classList.toggle('active', isRetail);
+  $('btnWholesale').classList.toggle('active', !isRetail);
+  $('resultCard').className = 'card ' + (isRetail ? 'retail' : 'wholesale');
+  $('fxWrap').style.display = (isRetail && $('currency').value === 'USD') ? 'block' : 'none';
+  fillInputsFromState();
+  updateSettingsSummary();
+  calc();
+}
+
+/* その段が実際にいくらの手数料になるかを、言葉で書く */
+function tierLabel(auction, tier, catIndex) {
+  if (auction.fee.kind === 'cats')   return auction.fee.cats[catIndex].label + ' ' + tier.rate + '%';
+  if (auction.fee.kind === 'custom') return '手入力 ' + tier.rate + '%';
+  if (auction.fee.kind === 'rate')   return tier.rate + '%';
+  const hi = tier.hi === Infinity ? '〜' : '〜' + tier.hi.toLocaleString('ja-JP') + '円';
+  return tier.lo.toLocaleString('ja-JP') + '円' + hi + ' → '
+       + (tier.yen ? '定額' + tier.yen.toLocaleString('ja-JP') + '円' : tier.rate + '%');
+}
+
+/* ---------------------------------------------------------------- 計算 */
+function calc() {
+  readInputsToState();
+  updateSettingsSummary();
+  saveAll();
+
+  const s = modeState[currentMode];
+  const auction = currentAuction();
+  const tiers = feeTiers(auction, s.catIndex);
+
+  const saleInput = num('salePrice');
+  const pf = s.platformFee / 100, tax = s.tax / 100, mg = s.margin / 100;
+
+  if (!saleInput) {
+    $('rcMain').className = 'rc-main empty';
+    $('rcMain').textContent = '売価を入れてください';
+    ['rcInc','rcProfit','rcFee','rcBreakdown'].forEach(id => $(id).style.display = 'none');
+    return;
+  }
+
+  let preTax, bidInc = null, auctionYen, totalCost, profit, netSale, lines;
+
+  if (currentMode === 'retail') {
+    let saleJPY = saleInput;
+    if ($('currency').value === 'USD') saleJPY = saleInput * num('fxRate');
+    const shipping = s.shipping, listing = s.listing;
+    netSale = saleJPY * (1 - pf);
+    const available = Math.max(netSale * (1 - mg) - shipping - listing, 0);
+    //   available = 仕入れ値*(1+消費税) + 仕入手数料
+    const res = solveWithTiers(tiers, (rate, fixed) => Math.max((available - fixed) / (1 + tax + rate), 0));
+    preTax = res.bid;
+    auctionYen = preTax * (res.tier.rate / 100) + res.tier.yen;
+    totalCost  = preTax * (1 + tax) + auctionYen + shipping + listing;
+    profit     = netSale - totalCost;
+    lines = ['仕入消費税 ' + yen(preTax * tax) + '／送料・出品代行 ' + yen(shipping + listing),
+             '総原価 ' + yen(totalCost) + '／販売手数料を引いた売上 ' + yen(netSale)];
+    var usedTier = res.tier;
+
+  } else if (s.taxIn) {
+    /* 内税：売価は税抜で入力。利益は税込売上に対して見る。 */
+    const saleEx = saleInput, saleInc = saleEx * (1 + tax);
+    const pfYen = saleEx * pf;
+    const available = Math.max(saleInc - saleInc * mg - pfYen - s.otherCost, 0);
+    //   available = 入札(税込) + 仕入手数料　※段の判定は税抜の落札額で行う
+    const res = solveWithTiers(tiers, (rate, fixed) => Math.max((available - fixed) / (1 + rate) / (1 + tax), 0));
+    preTax = res.bid;
+    bidInc = preTax * (1 + tax);
+    auctionYen = bidInc * (res.tier.rate / 100) + res.tier.yen;
+    totalCost  = pfYen + s.otherCost + bidInc + auctionYen;
+    profit     = saleInc - totalCost;
+    netSale    = saleInc;
+    lines = ['販売手数料 ' + yen(pfYen) + '／その他費用 ' + yen(s.otherCost),
+             '総原価 ' + yen(totalCost) + '／税込売上 ' + yen(saleInc)];
+    var usedTier = res.tier;
+
+  } else {
+    netSale = saleInput * (1 - pf);
+    const available = Math.max(netSale * (1 - mg) - s.otherCost, 0);
+    //   available = 仕入れ値 + 仕入手数料
+    const res = solveWithTiers(tiers, (rate, fixed) => Math.max((available - fixed) / (1 + rate), 0));
+    preTax = res.bid;
+    auctionYen = preTax * (res.tier.rate / 100) + res.tier.yen;
+    totalCost  = preTax + auctionYen + s.otherCost;
+    profit     = netSale - totalCost;
+    lines = ['その他費用 ' + yen(s.otherCost),
+             '総原価 ' + yen(totalCost) + '／販売手数料を引いた売上 ' + yen(netSale)];
+    var usedTier = res.tier;
+  }
+
+  $('rcMain').className = 'rc-main';
+  $('rcMain').textContent = yen(preTax);
+
+  if (bidInc !== null) {
+    $('rcInc').style.display = 'block';
+    $('rcInc').textContent = '税込 ' + yen(bidInc);
+  } else {
+    $('rcInc').style.display = 'none';
+  }
+
+  const rate = netSale ? (profit / netSale * 100) : 0;
+  $('rcProfit').style.display = 'block';
+  $('rcProfit').innerHTML = '利益額 ' + yen(profit)
+    + '<span>売上比 ' + rate.toFixed(1) + '%</span>';
+
+  $('rcFee').style.display = 'block';
+  $('rcFee').innerHTML = '仕入手数料 ' + yen(auctionYen)
+    + '　<b>' + auction.name + '：' + tierLabel(auction, usedTier, s.catIndex) + '</b>';
+
+  $('rcBreakdown').style.display = 'block';
+  $('rcBreakdownIn').innerHTML = lines.join('<br>');
+}
+
+/* ---------------------------------------------------------------- 配線 */
+$('auctionSelect').innerHTML = AUCTIONS.map(a =>
+  '<option value="' + a.id + '">' + a.name + '</option>').join('');
+
+loadAll();
+syncMode();
+
+$('btnRetail').addEventListener('click', () => { readInputsToState(); currentMode='retail'; syncMode(); saveAll(); });
+$('btnWholesale').addEventListener('click', () => { readInputsToState(); currentMode='wholesale'; syncMode(); saveAll(); });
+
+$('auctionSelect').addEventListener('change', (e) => {
   modeState[currentMode].auctionId = e.target.value;
   modeState[currentMode].catIndex = 0;
-  syncAuctionUI(); saveChoice();
+  fillInputsFromState(); calc();
 });
-document.getElementById('auctionCat').addEventListener('change', (e) => {
+$('auctionCat').addEventListener('change', (e) => {
   modeState[currentMode].catIndex = parseInt(e.target.value, 10) || 0;
-  syncAuctionUI(); saveChoice();
+  calc();
+});
+$('currency').addEventListener('change', () => {
+  const usd = $('currency').value === 'USD';
+  $('fxWrap').style.display = (usd && currentMode === 'retail') ? 'block' : 'none';
+  if (usd && !$('fxRate').value) fetchFx(); else calc();
 });
 
-['platformFee','margin','wholesaleTaxIn','otherCostYen','auctionFeeRate'].forEach(id => {
-  const el = document.getElementById(id);
-  if (el) el.addEventListener('input', saveCurrentInputsToMode);
+['salePrice','fxRate','platformFee','tax','margin','shippingYen','listingFeeYen',
+ 'otherCostYen','auctionFeeRate'].forEach(id => {
+  const el = $(id);
+  if (el) el.addEventListener('input', calc);
+});
+$('wholesaleTaxIn').addEventListener('change', calc);
+
+/* Enterはキーボードを閉じるだけ（計算は打つそばから走っている） */
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' || e.isComposing || e.keyCode === 229) return;
+  const t = e.target;
+  if (t && /^(INPUT|SELECT)$/.test(t.tagName)) { e.preventDefault(); t.blur(); calc(); }
 });
 
 /* 為替（小売のみ） */
@@ -410,147 +565,11 @@ async function fetchFx() {
     const res = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
     const json = await res.json();
     const rate = json && json.rates && json.rates.JPY;
-    if (rate) document.getElementById('fxRate').value = Number(rate).toFixed(2);
-  } catch(e){}
+    if (rate) $('fxRate').value = Number(rate).toFixed(2);
+  } catch (e) {}
+  calc();
 }
-document.getElementById('currency').addEventListener('change', () => {
-  const cur = document.getElementById('currency').value;
-  document.getElementById('fxLabel').style.display = (cur === 'USD' && currentMode === 'retail') ? 'block' : 'none';
-  if (cur === 'USD' && !document.getElementById('fxRate').value) fetchFx();
-});
-
-buildAuctionSelect();
-loadChoice();
-syncUI();
-
-/* ===== Enterキーで計算 ===== */
-document.addEventListener('keydown', (e) => {
-  if (e.key !== 'Enter' || e.isComposing || e.keyCode === 229) return;
-  if (e.ctrlKey || e.metaKey || e.altKey) return;
-  const t = e.target;
-  const tag = t && t.tagName ? t.tagName.toUpperCase() : '';
-  if (tag === 'BUTTON' || tag === 'TEXTAREA') return;
-  e.preventDefault();
-  const btn = document.getElementById('calcBtn');
-  if (btn) {
-    btn.click();
-    const bg = btn.style.background;
-    btn.style.background = '#eaf3ff';
-    setTimeout(() => { btn.style.background = bg; }, 150);
-  }
-});
-
-/* その段が実際にいくらの手数料になるかを、言葉で書く */
-function tierLabel(auction, tier, catIndex) {
-  if (auction.fee.kind === 'cats') return auction.fee.cats[catIndex].label + ' ' + tier.rate + '%';
-  if (auction.fee.kind === 'custom') return '手入力 ' + tier.rate + '%';
-  if (auction.fee.kind === 'rate') return tier.rate + '%';
-  const lo = tier.lo.toLocaleString('ja-JP');
-  const hi = tier.hi === Infinity ? '〜' : '〜' + tier.hi.toLocaleString('ja-JP') + '円';
-  const range = lo + '円' + hi;
-  return range + ' → ' + (tier.yen ? '定額' + tier.yen.toLocaleString('ja-JP') + '円' : tier.rate + '%');
-}
-
-/* ===== 計算ボタン ===== */
-document.getElementById('calcBtn').addEventListener('click', () => {
-  saveCurrentInputsToMode();
-  const isRetail = currentMode === 'retail';
-  const s = modeState[currentMode];
-  const auction = currentAuction();
-  const tiers = feeTiers(auction, s.catIndex);
-
-  const saleInput = parseFloat(document.getElementById('salePrice').value) || 0;
-  const pf     = (parseFloat(document.getElementById('platformFee').value) || 0) / 100;
-  const tax    = (parseFloat(document.getElementById('tax').value) || 0) / 100;
-  const margin = (parseFloat(document.getElementById('margin').value) || 0) / 100;
-
-  /* ===== 小売 ===== */
-  if (isRetail) {
-    let saleJPY = saleInput;
-    if (document.getElementById('currency').value === 'USD') {
-      saleJPY = saleInput * (parseFloat(document.getElementById('fxRate').value) || 0);
-    }
-    const shipping = parseFloat(document.getElementById('shippingYen').value) || 0;
-    const listing  = parseFloat(document.getElementById('listingFeeYen').value) || 0;
-
-    const netSale = saleJPY * (1 - pf);
-    const available = Math.max(netSale * (1 - margin) - shipping - listing, 0);
-
-    //   available = 仕入れ値*(1+消費税) + 仕入手数料
-    const res = solveWithTiers(tiers, (rate, fixed) =>
-      Math.max((available - fixed) / (1 + tax + rate), 0));
-
-    const preTax     = res.bid;
-    const auctionYen = preTax * (res.tier.rate / 100) + res.tier.yen;
-    const totalCost  = preTax * (1 + tax) + auctionYen + shipping + listing;
-    const profit     = netSale - totalCost;
-
-    document.getElementById('result').innerHTML =
-      '仕入れ値 (税抜) ≒ ' + yen(preTax) + '<br>' +
-      '利益額 ≒ ' + yen(profit) +
-      '<div class="breakdown">' +
-        '仕入手数料 ' + yen(auctionYen) + '　<span style="color:#1f3f7a;">' + auction.name + '：' + tierLabel(auction, res.tier, s.catIndex) + '</span><br>' +
-        '仕入消費税 ' + yen(preTax * tax) + '／送料・出品代行 ' + yen(shipping + listing) + '<br>' +
-        '総原価 ' + yen(totalCost) + '／販売手数料を引いた売上 ' + yen(netSale) +
-      '</div>';
-    return;
-  }
-
-  /* ===== 業販 ===== */
-  const other = parseFloat(document.getElementById('otherCostYen').value) || 0;
-
-  if (document.getElementById('wholesaleTaxIn').checked) {
-    /* 内税：売価は税抜で入力。利益は税込売上に対して見る。 */
-    const saleEx  = saleInput;
-    const saleInc = saleEx * (1 + tax);
-    const pfYen   = saleEx * pf;
-    const targetProfit = saleInc * margin;
-    const available = Math.max(saleInc - targetProfit - pfYen - other, 0);
-
-    //   available = 入札(税込) + 仕入手数料 　段の判定は税抜の落札額で行う
-    const res = solveWithTiers(tiers, (rate, fixed) =>
-      Math.max((available - fixed) / (1 + rate) / (1 + tax), 0));
-
-    const bidEx      = res.bid;
-    const bidInc     = bidEx * (1 + tax);
-    const auctionYen = bidInc * (res.tier.rate / 100) + res.tier.yen;
-    const totalCost  = pfYen + other + bidInc + auctionYen;
-    const profit     = saleInc - totalCost;
-
-    document.getElementById('result').innerHTML =
-      '仕入れ値 (税抜) ≒ ' + yen(bidEx) + '<br>' +
-      '仕入れ値 (税込) ≒ ' + yen(bidInc) + '<br>' +
-      '利益額 ≒ ' + yen(profit) +
-      '<div class="breakdown">' +
-        '仕入手数料 ' + yen(auctionYen) + '　<span style="color:#1f3f7a;">' + auction.name + '：' + tierLabel(auction, res.tier, s.catIndex) + '</span><br>' +
-        '販売手数料 ' + yen(pfYen) + '／その他費用 ' + yen(other) + '<br>' +
-        '総原価 ' + yen(totalCost) + '／税込売上 ' + yen(saleInc) +
-      '</div>';
-
-  } else {
-    /* 外税 */
-    const netSale = saleInput * (1 - pf);
-    const available = Math.max(netSale * (1 - margin) - other, 0);
-
-    //   available = 仕入れ値 + 仕入手数料
-    const res = solveWithTiers(tiers, (rate, fixed) =>
-      Math.max((available - fixed) / (1 + rate), 0));
-
-    const preTax     = res.bid;
-    const auctionYen = preTax * (res.tier.rate / 100) + res.tier.yen;
-    const totalCost  = preTax + auctionYen + other;
-    const profit     = netSale - totalCost;
-
-    document.getElementById('result').innerHTML =
-      '仕入れ値 (税抜) ≒ ' + yen(preTax) + '<br>' +
-      '利益額 ≒ ' + yen(profit) +
-      '<div class="breakdown">' +
-        '仕入手数料 ' + yen(auctionYen) + '　<span style="color:#1f3f7a;">' + auction.name + '：' + tierLabel(auction, res.tier, s.catIndex) + '</span><br>' +
-        'その他費用 ' + yen(other) + '<br>' +
-        '総原価 ' + yen(totalCost) + '／販売手数料を引いた売上 ' + yen(netSale) +
-      '</div>';
-  }
-});
+if ($('currency').value === 'USD' && currentMode === 'retail') fetchFx();
 </script>
 </body>
 </html>
