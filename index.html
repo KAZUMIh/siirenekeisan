@@ -185,7 +185,7 @@ details.sell > summary > .lbl { flex:none; white-space:nowrap; }
 
     <div class="field-label">その他費用（円・原価に加算）</div>
     <input id="otherCostYen" type="number" value="0"/>
-    <div class="hint">売り先の定額手数料（写真代・出品料など）はここに入ります</div>
+    <div class="hint" id="otherCostHint">売り先の定額手数料（写真代・出品料など）はここに入ります</div>
 
     <div id="wholesaleExtras" style="display:none;">
       <label class="check">
@@ -626,7 +626,15 @@ function syncMode() {
   $('btnRetail').classList.toggle('active', isRetail);
   $('btnWholesale').classList.toggle('active', !isRetail);
   $('resultCard').className = 'card ' + (isRetail ? 'retail' : 'wholesale');
-  $('fxWrap').style.display = (isRetail && $('currency').value === 'USD') ? 'block' : 'none';
+  const usd = isRetail && $('currency').value === 'USD';
+  $('fxWrap').style.display = usd ? 'block' : 'none';
+  // 売り先の手数料くらべは業販だけ。小売はebay・メルカリで売るので会場は関係ない
+  $('sellBox').style.display = isRetail ? 'none' : 'block';
+  // 売価の▲▼の刻み: 業販は1,000円、小売は100円（USDは1ドル）
+  $('salePrice').step = isRetail ? (usd ? '1' : '100') : '1000';
+  $('otherCostHint').textContent = isRetail
+    ? '梱包材など、送料・出品代行のほかにかかる分'
+    : '売り先の定額手数料（写真代・出品料など）はここに入ります';
   fillInputsFromState();
   calc();
 }
@@ -742,6 +750,7 @@ function sellKind()  { return $('sellKind').value || 'bag'; }
 function sellBrand() { return $('sellBrand').value || 'base'; }
 
 function renderSellList() {
+  if (currentMode === 'retail') return;   // 小売はebay・メルカリ想定なので会場くらべは使わない
   const price = sellPriceForList();
   const box = $('sellList');
   if (!price) {
@@ -833,6 +842,8 @@ $('currency').addEventListener('change', () => {
   modeState.retail.currency = $('currency').value;
   saveAll();
   $('fxWrap').style.display = (usd && currentMode === 'retail') ? 'block' : 'none';
+  // ドルにしたら▲▼は1ドル刻み、円なら100円刻み
+  if (currentMode === 'retail') $('salePrice').step = usd ? '1' : '100';
   if (usd) fetchFx(false); else calc();
 });
 
