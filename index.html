@@ -80,6 +80,33 @@ details.bd .in { font-size:.78rem; color:#555; line-height:1.8; margin-top:.3rem
 .check { display:flex; gap:.45rem; align-items:center; margin-top:.8rem; font-size:.88rem; font-weight:600; }
 .check input { width:auto; }
 .foot { margin-top:1.4rem; font-size:.74rem; color:#b0b5bc; text-align:center; line-height:1.7; }
+
+/* 売り先くらべ */
+details.sell { margin-top:1rem; border:1px solid var(--line); border-radius:10px; padding:.6rem .7rem; background:#fcfcfd; }
+details.sell > summary {
+  cursor:pointer; font-size:.85rem; font-weight:700; color:#3b4048; list-style:none;
+  display:flex; align-items:baseline; gap:.4rem;
+}
+details.sell > summary::-webkit-details-marker { display:none; }
+details.sell > summary::before { content:'▸'; color:var(--muted); font-size:.75rem; flex:none; }
+details.sell[open] > summary::before { content:'▾'; }
+details.sell > summary > .lbl { flex:none; white-space:nowrap; }
+#sellSummary { flex:1; font-weight:400; font-size:.76rem; color:var(--muted); }
+.sell-body { margin-top:.7rem; }
+.sv {
+  display:flex; align-items:center; gap:.5rem; padding:.45rem .5rem; border-radius:8px;
+  cursor:pointer; border:1px solid transparent;
+}
+.sv:hover { background:#eef2f8; border-color:#dde4ef; }
+.sv-rank { width:1.6rem; flex:none; text-align:right; font-size:.75rem; color:var(--muted); font-weight:700; }
+.sv-name { flex:1; font-size:.85rem; font-weight:700; min-width:0; }
+.sv-name small { display:block; font-weight:400; font-size:.72rem; color:var(--muted); }
+.sv-fee { text-align:right; font-size:.85rem; font-weight:800; white-space:nowrap; }
+.sv-fee small { display:block; font-weight:600; font-size:.72rem; color:var(--muted); }
+.sv.best { background:#f0f9f2; border-color:#b8e0c4; }
+.sv.best .sv-rank { color:#2e7d32; }
+.sv.best .sv-fee { color:#2e7d32; }
+.sv-fail { font-size:.7rem; color:#b06a00; margin:.1rem 0 .3rem 2.1rem; }
 </style>
 </head>
 <body>
@@ -102,8 +129,11 @@ details.bd .in { font-size:.78rem; color:#555; line-height:1.8; margin-top:.3rem
 </div>
 <div id="fxWrap" style="display:none;margin-top:.5rem;">
   <div class="field-label">為替レート（1 USD = JPY）</div>
-  <input id="fxRate" type="number"/>
-  <div class="hint">※自動取得。取れないときは手入力してください</div>
+  <div style="display:flex;gap:.5rem;">
+    <input id="fxRate" type="number" style="flex:1;"/>
+    <button id="fxRefresh" type="button" style="width:84px;flex:none;padding:.6rem .2rem;border:1px solid #ccd1d9;border-radius:9px;background:#fafbfc;font-weight:700;cursor:pointer;">再取得</button>
+  </div>
+  <div class="hint" id="fxStatus">自動取得します。取れないときは手で入力できます</div>
 </div>
 
 <!-- 2. 答え -->
@@ -170,6 +200,25 @@ details.bd .in { font-size:.78rem; color:#555; line-height:1.8; margin-top:.3rem
       </div>
     </div>
 
+    <!-- 売り先の手数料くらべ -->
+    <details class="sell" id="sellBox">
+      <summary><span class="lbl">売り先の手数料をくらべる</span><span id="sellSummary"></span></summary>
+      <div class="sell-body">
+        <div class="row" style="margin-bottom:.5rem;">
+          <div>
+            <div class="field-label">商材</div>
+            <select id="sellKind"></select>
+          </div>
+          <div>
+            <div class="field-label">ブランド</div>
+            <select id="sellBrand"></select>
+          </div>
+        </div>
+        <div id="sellList"></div>
+        <div class="hint" id="sellNote"></div>
+      </div>
+    </details>
+
   </div>
 </div>
 
@@ -205,6 +254,7 @@ const AUCTIONS = [
     note:'落札手数料は<b>％ではなく定額</b>で、落札金額の段で決まる。'
        + '<br><span class="sub">1万円まで500円／5万円未満1,000円／10万円未満2,000円／'
        + '50万円未満4,000円／100万円未満8,000円／100万円以上10,000円</span>' },
+    // ※出品側の費用（写真代400円など）は、下の「売り先の手数料をくらべる」に移した
 
   { id:'starbuyers', name:'スターバイヤー', fee:{kind:'cats', cats:[
       {label:'バッグ・ジュエリー・時計・アクセサリー・小物', rate:5},
@@ -224,10 +274,10 @@ const AUCTIONS = [
     note:'落札手数料 <b>3%</b>' },
 
   { id:'reva', name:'リバオク', fee:{kind:'rate', rate:3},
-    note:'落札手数料 <b>3%</b><br><span class="sub">※出品して流れると1点1,100円（買いには無関係）</span>' },
+    note:'落札手数料 <b>3%</b>' },
 
   { id:'monobank', name:'ものばんく', fee:{kind:'rate', rate:3},
-    note:'買い手数料 <b>3%</b>／写真手数料なし' },
+    note:'買い手数料 <b>3%</b>' },
 
   { id:'jrb', name:'JRBオークション', fee:{kind:'rate', rate:3},
     note:'買い手数料 <b>3%</b>' },
@@ -263,6 +313,148 @@ const AUCTIONS = [
   { id:'prime', name:'プライムオークション', fee:{kind:'rate', rate:8},
     note:'買い手数料 <b>8%</b>' }
 ];
+
+
+/* =====================================================================
+   売り先（出品する会場）の手数料。
+   「手数料まとめ」の販売手数料・出品手数料をそのまま入れてある。
+
+   ここに入れているのは<売れたときに必ずかかる分>だけ。
+     ・販売／出品手数料（％または定額）
+     ・1点ごとに必ずかかるもの（写真代など）
+   流れたときの費用（不落札手数料・返送料）と、1回ごとの費用（参加費）は
+   金額には足さず、注記として出す。1商品あたりに割れないため。
+
+   ＋税と書いてある会場は、実際に払う額に合わせて税込の率で入れてある。
+   ===================================================================== */
+
+/** 段で決まる手数料。hi はその段に入る上限額（その額を含む） */
+function tierFee(tiers) {
+  return (price) => {
+    for (const t of tiers) {
+      if (price <= t.hi) {
+        return t.yen != null
+          ? { yen: t.yen, label: '定額' + t.yen.toLocaleString('ja-JP') + '円' }
+          : { yen: price * t.rate / 100, label: t.rate + '%' };
+      }
+    }
+    const t = tiers[tiers.length - 1];
+    return t.yen != null
+      ? { yen: t.yen, label: '定額' + t.yen.toLocaleString('ja-JP') + '円' }
+      : { yen: price * t.rate / 100, label: t.rate + '%' };
+  };
+}
+
+const SELL_VENUES = [
+  { id:'prime', name:'プライム', fee: tierFee([{ hi:Infinity, rate:0 }]),
+    note:'売り手数料 無料' },
+
+  { id:'jba_kanazawa', name:'JBA金沢', fee: tierFee([
+      { hi:29999, rate:10 }, { hi:99999, rate:4 }, { hi:999999, rate:3 },
+      { hi:4999999, rate:2.5 }, { hi:9999999, rate:2 }, { hi:Infinity, rate:1 }]) },
+
+  { id:'jba_tokyo', name:'JBA東京', fee: tierFee([
+      { hi:9999, rate:10 }, { hi:49999, rate:5 }, { hi:Infinity, rate:3 }]),
+    note:'バッグ前半・後半 共通' },
+
+  { id:'jrb', name:'JRB', fee: tierFee([
+      { hi:9999, rate:10 }, { hi:49999, rate:5 }, { hi:99999, rate:3 },
+      { hi:Infinity, rate:0 }]),
+    note:'10万円以上は無料' },
+
+  { id:'eco', name:'エコリング', fee: tierFee([
+      { hi:10000, yen:500 }, { hi:49999, yen:1000 }, { hi:Infinity, yen:2000 }]),
+    perItem:400, perItemLabel:'写真代400円' },
+
+  { id:'aucnet', name:'オークネット', fee: tierFee([{ hi:Infinity, rate:3 }]),
+    min:700, perItem:300, perItemLabel:'写真代300円',
+    fail:'流札手数料 0〜900円（成約率による）', note:'成約手数料が700円に満たないときは一律700円' },
+
+  { id:'starbuyers', name:'スターバイヤー', fee: tierFee([{ hi:Infinity, yen:1100 }]),
+    fail:'不落札 550円/点（税込）', note:'落札額にかかわらず1点1,100円（税込）' },
+
+  { id:'komehyo', name:'コメ兵', fee: tierFee([{ hi:20000, yen:1000 }, { hi:Infinity, rate:5 }]),
+    perItem:500, perItemLabel:'出品手数料500円',
+    fail:'不落札 500円/点／事務諸費用 1カテゴリーごと1,000円' },
+
+  { id:'trefac', name:'トレファク', fee: tierFee([
+      { hi:2999, rate:11 }, { hi:9999, rate:5.5 }, { hi:199999, rate:3.3 },
+      { hi:Infinity, rate:1.1 }]),
+    fail:'不落札 550円/点（税込）', note:'表示は税込（10%＋税＝11% など）' },
+
+  { id:'reva', name:'リバオク', fee: tierFee([{ hi:Infinity, rate:3 }]),
+    fail:'不落札 1,100円/点' },
+
+  { id:'monobank', name:'ものばんく', fee: tierFee([{ hi:Infinity, rate:5 }]),
+    note:'写真手数料なし' },
+
+  { id:'timeless_hiraba', name:'タイムレス（平場）', fee: tierFee([
+      { hi:10000, rate:10 }, { hi:Infinity, rate:5 }]) },
+
+  { id:'timeless_online', name:'タイムレス（オンライン）', fee: tierFee([{ hi:Infinity, rate:5 }]),
+    onlyKinds:['bag'], fail:'流れ 550円', note:'バッグ' },
+
+  { id:'penguin', name:'ペンギン', fee: tierFee([{ hi:Infinity, yen:550 }]),
+    fail:'引き手数料 1,000円/点（税抜）', note:'1点500円（税抜）。ほかにキャッシュバック2%' },
+
+  { id:'apre', name:'アプレ', fee: tierFee([{ hi:Infinity, rate:3 }]),
+    fail:'成約時参加費 3,000円（1回ごと）' },
+
+  { id:'unioku', name:'ユニオク', fee: tierFee([{ hi:Infinity, rate:3 }]) },
+
+  // 商材で変わる
+  { id:'daikichi', name:'大吉', byKind:{
+      bag:   tierFee([{ hi:9999, yen:500 }, { hi:Infinity, rate:3 }]),
+      jewel: tierFee([{ hi:Infinity, rate:5 }]),
+      watch: tierFee([{ hi:49999, rate:5 }, { hi:Infinity, rate:3 }]) },
+    fail:'落札者がつかなければ出品手数料はかからない' },
+
+  // ブランドで変わる（買いではなく、出品のときだけ）
+  { id:'yba', name:'YBA', byBrand:{
+      base: tierFee([{ hi:29999, rate:10 }, { hi:149999, rate:5 },
+                     { hi:1499999, rate:2 }, { hi:Infinity, rate:0 }]),
+      lvgucci: (price) => price >= 1500000 ? { yen:0, label:'0%' }
+             : price >= 30000 ? { yen: price * 0.06, label:'6%' }
+             : { yen: price * 0.10, label:'10%' },
+      chanel: (price) => price >= 500000 ? { yen:0, label:'0%' }
+             : price >= 400000 ? { yen: price * 0.01, label:'1%' }
+             : null,   // null = 基準の表を使う
+      hermes: (price) => price >= 1500000 ? { yen:0, label:'0%' }
+             : price >= 1000000 ? { yen: price * 0.01, label:'1%' }
+             : null },
+    note:'ブランドで変わる。委託出品手数料6,600円（1回ごと）は入れていない' }
+];
+
+const SELL_KINDS = [
+  { id:'bag',   label:'バッグ・ブランド品' },
+  { id:'jewel', label:'ジュエリー' },
+  { id:'watch', label:'時計' }
+];
+const SELL_BRANDS = [
+  { id:'base',    label:'そのほかのブランド' },
+  { id:'lvgucci', label:'ルイヴィトン / グッチ' },
+  { id:'chanel',  label:'シャネル' },
+  { id:'hermes',  label:'エルメス' }
+];
+
+/** その会場に売価 price で出したときの手数料（円）と内訳 */
+function sellCost(v, price, kind, brand) {
+  let f = null;
+  if (v.byBrand) {
+    const fn = v.byBrand[brand] || v.byBrand.base;
+    f = fn(price);
+    if (!f) f = v.byBrand.base(price);   // ブランド別の対象外なら基準の表
+  } else if (v.byKind) {
+    f = (v.byKind[kind] || v.byKind.bag)(price);
+  } else {
+    f = v.fee(price);
+  }
+  let yen = f.yen;
+  let label = f.label;
+  if (v.min && yen < v.min) { yen = v.min; label = '最低' + v.min.toLocaleString('ja-JP') + '円'; }
+  if (v.perItem) yen += v.perItem;
+  return { yen: Math.round(yen), label };
+}
 
 const $ = (id) => document.getElementById(id);
 function yen(n){ return '¥' + Math.round(n).toLocaleString('ja-JP'); }
@@ -310,7 +502,7 @@ function solveWithTiers(tiers, solveB) {
 let currentMode = 'retail';
 const modeState = {
   retail:    { platformFee:10, margin:20, tax:10, auctionId:'aucnet', catIndex:0, customFee:5,
-               shipping:700, listing:1320 },
+               shipping:700, listing:1320, currency:'JPY' },
   wholesale: { platformFee:3,  margin:10, tax:10, auctionId:'aucnet', catIndex:0, customFee:5,
                taxIn:false, otherCost:0 }
 };
@@ -349,6 +541,7 @@ function fillInputsFromState() {
     $('otherCostYen').value = s.otherCost;
   }
   $('auctionSelect').value = s.auctionId;
+  if (currentMode === 'retail' && s.currency) $('currency').value = s.currency;
 
   const a = currentAuction();
   const catSel = $('auctionCat');
@@ -433,6 +626,7 @@ function calc() {
     $('rcMain').className = 'rc-main empty';
     $('rcMain').textContent = '売価を入れてください';
     ['rcInc','rcProfit','rcFee','rcBreakdown'].forEach(id => $(id).style.display = 'none');
+    renderSellList();
     return;
   }
 
@@ -506,7 +700,72 @@ function calc() {
 
   $('rcBreakdown').style.display = 'block';
   $('rcBreakdownIn').innerHTML = lines.join('<br>');
+
+  renderSellList();
 }
+
+
+/* ------------------------------------------------- 売り先の手数料くらべ */
+function sellKind()  { return $('sellKind').value || 'bag'; }
+function sellBrand() { return $('sellBrand').value || 'base'; }
+
+function renderSellList() {
+  const price = sellPriceForList();
+  const box = $('sellList');
+  if (!price) {
+    box.innerHTML = '<div class="hint">売価を入れると、それぞれの会場でいくら引かれるか出ます。</div>';
+    $('sellSummary').textContent = '';
+    $('sellNote').textContent = '';
+    return;
+  }
+  const kind = sellKind(), brand = sellBrand();
+  const list = SELL_VENUES
+    .filter(v => !v.onlyKinds || v.onlyKinds.indexOf(kind) >= 0)
+    .map(v => {
+      const c = sellCost(v, price, kind, brand);
+      return { v, yen: c.yen, label: c.label, net: price - c.yen };
+    })
+    .sort((a, b) => a.yen - b.yen);
+
+  const best = list[0];
+  box.innerHTML = list.map((r, i) => {
+    const rate = price ? (r.yen / price * 100) : 0;
+    const parts = [r.label];
+    if (r.v.perItemLabel) parts.push(r.v.perItemLabel);
+    return '<div class="sv' + (i === 0 ? ' best' : '') + '" data-rate="' + rate.toFixed(2) + '" data-name="' + r.v.name + '">'
+      + '<div class="sv-rank">' + (i === 0 ? '★' : (i + 1)) + '</div>'
+      + '<div class="sv-name">' + r.v.name
+      + '<small>' + parts.join('＋') + (r.v.note ? '　' + r.v.note : '') + '</small></div>'
+      + '<div class="sv-fee">' + yen(r.yen) + '<small>手取り ' + yen(r.net) + '</small></div>'
+      + '</div>'
+      + (r.v.fail ? '<div class="sv-fail">売れなかったとき：' + r.v.fail + '</div>' : '');
+  }).join('');
+
+  $('sellSummary').textContent = '（' + yen(price) + 'なら ' + best.v.name + ' が一番安い／' + yen(best.yen) + '）';
+  $('sellNote').innerHTML = '手数料の安い順。★が一番手取りが多い会場です。行を押すと、その会場の実効率が上の販売手数料に入ります。'
+    + '<br>参加費（1回ごと）と売れなかったときの費用は金額に入れていません。金額は税込の実額です。';
+}
+
+/** 売り先くらべに使う売価。業販の内税モードは税抜で入力しているので、そのまま使う */
+function sellPriceForList() {
+  const v = num('salePrice');
+  if (!v) return 0;
+  if (currentMode === 'retail' && $('currency').value === 'USD') return Math.round(v * num('fxRate'));
+  return v;
+}
+
+$('sellList').addEventListener('click', (e) => {
+  const row = e.target.closest('.sv');
+  if (!row) return;
+  $('platformFee').value = Number(row.dataset.rate);
+  calc();
+  $('sellNote').innerHTML = '<b>' + row.dataset.name + '</b> の実効率 ' + row.dataset.rate + '% を販売手数料に入れました。';
+});
+
+$('sellKind').innerHTML = SELL_KINDS.map(k => '<option value="' + k.id + '">' + k.label + '</option>').join('');
+$('sellBrand').innerHTML = SELL_BRANDS.map(b => '<option value="' + b.id + '">' + b.label + '</option>').join('');
+$('sellKind').addEventListener('change', renderSellList);
+$('sellBrand').addEventListener('change', renderSellList);
 
 /* ---------------------------------------------------------------- 配線 */
 $('auctionSelect').innerHTML = AUCTIONS.map(a =>
@@ -529,8 +788,10 @@ $('auctionCat').addEventListener('change', (e) => {
 });
 $('currency').addEventListener('change', () => {
   const usd = $('currency').value === 'USD';
+  modeState.retail.currency = $('currency').value;
+  saveAll();
   $('fxWrap').style.display = (usd && currentMode === 'retail') ? 'block' : 'none';
-  if (usd && !$('fxRate').value) fetchFx(); else calc();
+  if (usd) fetchFx(false); else calc();
 });
 
 ['salePrice','fxRate','platformFee','tax','margin','shippingYen','listingFeeYen',
@@ -547,17 +808,93 @@ document.addEventListener('keydown', (e) => {
   if (t && /^(INPUT|SELECT)$/.test(t.tagName)) { e.preventDefault(); t.blur(); calc(); }
 });
 
-/* 為替（小売のみ） */
-async function fetchFx() {
+/* ------------------------------------------------------------------ 為替
+   これまでは「JPYからUSDに切り替えたときだけ」取りに行き、
+   一度入ったら二度と更新しなかった。しかも失敗しても何も出なかったので、
+   取れているのかどうか分からなかった。
+
+   直したこと
+     ・取得先を3つ用意して、順に試す（1つ落ちていても止まらない）
+     ・取れたレートは取得時刻と一緒に覚えておく
+     ・6時間より古ければ、開いたときに自動で取り直す
+     ・取得中・取得時刻・失敗を画面に出す
+     ・「再取得」ボタンをつける
+     ・USD/JPYの選択を次に開いたときも覚える
+   ------------------------------------------------------------------ */
+const FX_KEY = 'siirene_fx_v1';
+const FX_MAX_AGE_MS = 6 * 60 * 60 * 1000;   // 6時間
+const FX_SOURCES = [
+  { name: 'open.er-api',      url: 'https://open.er-api.com/v6/latest/USD',
+    pick: (j) => j && j.rates && j.rates.JPY },
+  { name: 'exchangerate-api', url: 'https://api.exchangerate-api.com/v4/latest/USD',
+    pick: (j) => j && j.rates && j.rates.JPY },
+  { name: 'currency-api',     url: 'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json',
+    pick: (j) => j && j.usd && j.usd.jpy }
+];
+
+function fxLoadCache() {
   try {
-    const res = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
-    const json = await res.json();
-    const rate = json && json.rates && json.rates.JPY;
-    if (rate) $('fxRate').value = Number(rate).toFixed(2);
+    const o = JSON.parse(localStorage.getItem(FX_KEY) || 'null');
+    if (o && o.rate > 0 && o.at) return o;
   } catch (e) {}
+  return null;
+}
+function fxSaveCache(rate, source) {
+  try { localStorage.setItem(FX_KEY, JSON.stringify({ rate: rate, at: Date.now(), source: source })); } catch (e) {}
+}
+function fxSetStatus(text, warn) {
+  const el = $('fxStatus');
+  if (!el) return;
+  el.textContent = text;
+  el.style.color = warn ? '#b06a00' : '#9aa0a8';
+}
+function fxTimeText(at) {
+  const d = new Date(at);
+  const p = (n) => String(n).padStart(2, '0');
+  return `${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+let fxFetching = false;
+async function fetchFx(force) {
+  if (fxFetching) return;
+  const cached = fxLoadCache();
+  if (!force && cached && Date.now() - cached.at < FX_MAX_AGE_MS) {
+    $('fxRate').value = Number(cached.rate).toFixed(2);
+    fxSetStatus(`自動取得（${fxTimeText(cached.at)} 時点）`);
+    calc();
+    return;
+  }
+  fxFetching = true;
+  fxSetStatus('取得中…');
+  for (const src of FX_SOURCES) {
+    try {
+      const res = await fetch(src.url, { cache: 'no-store' });
+      if (!res.ok) continue;
+      const rate = src.pick(await res.json());
+      if (rate > 0) {
+        $('fxRate').value = Number(rate).toFixed(2);
+        fxSaveCache(rate, src.name);
+        fxSetStatus(`自動取得（${fxTimeText(Date.now())} 時点）`);
+        fxFetching = false;
+        calc();
+        return;
+      }
+    } catch (e) { /* 次の取得先へ */ }
+  }
+  fxFetching = false;
+  if (cached) {
+    $('fxRate').value = Number(cached.rate).toFixed(2);
+    fxSetStatus(`いま取得できないので、前回の値（${fxTimeText(cached.at)} 時点）を使っています`, true);
+  } else {
+    fxSetStatus('自動取得できませんでした。手で入力してください', true);
+  }
   calc();
 }
-if ($('currency').value === 'USD' && currentMode === 'retail') fetchFx();
+
+$('fxRefresh').addEventListener('click', () => fetchFx(true));
+
+// 開いた時点で、小売なら取りに行っておく（USDに切り替えた瞬間に待たされないように）
+if (currentMode === 'retail') fetchFx(false);
 </script>
 </body>
 </html>
